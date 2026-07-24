@@ -30,6 +30,19 @@
 ## コーディング規約（実装フェーズで随時追記）
 - （実装開始後、各エージェントがここに追記していく）
 
+## ローカル開発・認証情報の取り扱い
+- Firebase Admin SDKのサービスアカウント鍵は `/home/yuki/.secrets/upsider-balance-adminsdk.json` に保管する（リポジトリ外、gitに含まれない）。
+- ローカルでAdmin SDKを使うスクリプト（`scripts/create-account.ts`等）を実行する際は `export GOOGLE_APPLICATION_CREDENTIALS=/home/yuki/.secrets/upsider-balance-adminsdk.json` を設定してから実行する。
+- このキーを他の場所（ダウンロードフォルダ等）にコピーしたままにしない。作業後は都度確認して重複コピーを削除する。
+- Firebase Web SDKのクライアント設定値（apiKey等）は `firebase apps:sdkconfig WEB <appId> --project upsider-balance` で取得できる。これは公開情報として扱ってよい値（クライアントに埋め込む前提のキー）であり、サービスアカウント鍵とは機密度が異なる。
+
+## ブランチ・PR運用ルール（2026-07-24〜）
+- ブランチ命名: `feat/xxx`, `fix/xxx`, `chore/xxx`, `docs/xxx` など Conventional Commits 準拠のプレフィックスを使う。
+- 1 issue = 1ブランチ = 1PR を基本とする。作業が大きい場合はissue内でタスクを分割し、こまめに小さいPRを作ってマージしていく。
+- コミットメッセージも同じプレフィックス規則（`feat:`, `fix:`, `chore:`, `docs:`）に従う。
+- mainブランチへの直接pushは避け、PR経由でマージする（GitHub側のブランチ保護は現時点では未設定、運用ルールとして遵守する）。
+- 既知の問題・将来的な技術的負債はGitHub issueとして起票し、`tech-debt`ラベルを付与する。優先度が低くても必ずissue化し、プロジェクトの見える化を保つ。
+
 ## 参照すべき設計文書
 - [00_requirements.md](../design/00_requirements.md) — 要件定義
 - [01_architecture.md](../design/01_architecture.md) — アーキテクチャ設計

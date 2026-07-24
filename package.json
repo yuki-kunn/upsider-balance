@@ -9,6 +9,12 @@
     "dev:web": "pnpm --filter web dev",
     "dev:functions": "pnpm --filter @upsider-balance/functions build:watch",
     "build": "pnpm --filter @upsider-balance/shared build && pnpm --filter web build && pnpm --filter @upsider-balance/functions build",
-    "emulators": "firebase emulators:start"
+    "emulators": "firebase emulators:start",
+    "create-account": "tsx scripts/create-account.ts"
+  },
+  "devDependencies": {
+    "firebase-admin": "^12.7.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
   }
 }

@@ -55,3 +55,21 @@
 - 原因: `packages/functions/.gitignore`に`lib/`とだけ書いていたため、ビルド出力先の`packages/functions/lib/`だけでなく、任意階層の`lib`ディレクトリ（`src/lib/`含む）にマッチしてしまった。
 - 解決策: `lib/`を`/lib/`（パッケージルートからの相対パス指定）に変更し、ビルド出力のみを除外するようにした。
 - 関連ファイル: `packages/functions/.gitignore`
+
+## 2026-07-24 WSL環境でFirestore/Authエミュレータが起動できない（Java未インストール）
+- 症状: `firebase emulators:start`実行時に`Error: Could not spawn 'java -version'. Please make sure Java is installed and on your system PATH.`
+- 原因: Firestore/Authエミュレータの実体（Javaベース）を動かすJREが環境に無く、sudoパスワードが必要でインストールもできなかった。
+- 解決策: エミュレータ検証は行わず、実際のFirebaseプロジェクト（upsider-balance）に対してテストアカウントを作成し動作検証する方針に切り替えた。検証後はテストデータをクリーンアップした。今後Java環境が整えば `apt install default-jre` 等でエミュレータを有効化できる。
+- 関連ファイル: なし（環境起因の制約）
+
+## 2026-07-24 Admin SDKローカル実行時に`auth/configuration-not-found`
+- 症状: サービスアカウント鍵を使ってAdmin SDKからFirebase Authを操作しようとすると`There is no configuration corresponding to the provided identifier.`（`auth/configuration-not-found`）で失敗した。
+- 原因: Firebase ConsoleでAuthenticationサービス自体をまだ有効化していなかった（プロジェクト作成直後はAuthenticationが未初期化の状態）。
+- 解決策: Firebase Console → Authentication → 「始める」でサービスを有効化し、Sign-in methodで「メール/パスワード」を有効化した。
+- 関連ファイル: なし（Firebase Console側の設定）
+
+## 2026-07-24 Admin SDKローカル実行時に`initializeApp()`だけではprojectIdが解決されない
+- 症状: `GOOGLE_APPLICATION_CREDENTIALS`環境変数を設定していても、引数なしの`initializeApp()`では`There is no configuration corresponding to the provided identifier.`エラーが出た。
+- 原因: ローカルNode.js実行環境では、Cloud Functions実行環境のような自動的なprojectId解決が働かないケースがある。
+- 解決策: `scripts/create-account.ts`で、`GOOGLE_APPLICATION_CREDENTIALS`が指すJSONファイルを`readFileSync`で読み込み、`cert(serviceAccount)`と`projectId: serviceAccount.project_id`を明示的に`initializeApp()`に渡すよう変更した。
+- 関連ファイル: `scripts/create-account.ts`

@@ -12,3 +12,5 @@ packages/shared/dist/
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+*serviceAccount*.json
+*adminsdk*.json
