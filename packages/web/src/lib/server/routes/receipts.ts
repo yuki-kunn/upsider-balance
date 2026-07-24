@@ -6,8 +6,8 @@ import { getAdminStorage } from "../lib/firestore.js";
 import { analyzeReceiptImage } from "../lib/gemini.js";
 import { getDb } from "../lib/firestore.js";
 import { resolveFacilityIdForUser } from "../lib/facility.js";
-import { ValidationError } from "../lib/validation.js";
-import { assertGeminiRateLimit, RateLimitError } from "../lib/rate-limit.js";
+import { assertGeminiRateLimit } from "../lib/rate-limit.js";
+import { respondWithError } from "../lib/error-response.js";
 
 export const receiptsRoute = new Hono<AppEnv>();
 
@@ -83,16 +83,9 @@ receiptsRoute.post("/analyze", requireRole("facility", "admin"), async (c) => {
 
     return c.json(response);
   } catch (err) {
-    if (err instanceof RateLimitError) {
-      return c.json({ error: "rate_limited", message: err.message }, 429);
-    }
-    if (err instanceof ValidationError) {
-      return c.json({ error: "bad_request", message: err.message }, 400);
-    }
     // errオブジェクト全体はログに出さない。Gemini SDKのエラーにAPIキー等の
-    // リクエスト情報が付随する場合があるため（02_security.md 6章）、メッセージのみ記録する。
-    const message = err instanceof Error ? err.message : "unknown error";
-    console.error("POST /receipts/analyze failed:", message);
-    return c.json({ error: "internal_error", message: "failed to analyze receipt" }, 500);
+    // リクエスト情報が付随する場合があるため（02_security.md 6章）、respondWithErrorは
+    // メッセージのみを記録する。
+    return respondWithError(c, err, "failed to analyze receipt");
   }
 });

@@ -12,6 +12,7 @@ import {
   ValidationError,
 } from "../lib/validation.js";
 import { resolveSoleFacilityId } from "../lib/facility.js";
+import { respondWithError } from "../lib/error-response.js";
 
 export const adminRoute = new Hono<AppEnv>();
 
@@ -73,11 +74,7 @@ adminRoute.patch("/balance", async (c) => {
 
     return c.json({ balanceAmount: nextAmount });
   } catch (err) {
-    if (err instanceof ValidationError) {
-      return c.json({ error: "bad_request", message: err.message }, 400);
-    }
-    console.error("PATCH /admin/balance failed", err);
-    return c.json({ error: "internal_error", message: "failed to update balance" }, 500);
+    return respondWithError(c, err, "failed to update balance");
   }
 });
 
@@ -154,14 +151,7 @@ adminRoute.patch("/purchases/:id", async (c) => {
 
     return c.json(result);
   } catch (err) {
-    if (err instanceof NotFoundError) {
-      return c.json({ error: "not_found", message: err.message }, 404);
-    }
-    if (err instanceof ValidationError) {
-      return c.json({ error: "bad_request", message: err.message }, 400);
-    }
-    console.error("PATCH /admin/purchases/:id failed", err);
-    return c.json({ error: "internal_error", message: "failed to update purchase" }, 500);
+    return respondWithError(c, err, "failed to update purchase");
   }
 });
 
@@ -211,10 +201,6 @@ adminRoute.delete("/purchases/:id", async (c) => {
 
     return c.json(result);
   } catch (err) {
-    if (err instanceof NotFoundError) {
-      return c.json({ error: "not_found", message: err.message }, 404);
-    }
-    console.error("DELETE /admin/purchases/:id failed", err);
-    return c.json({ error: "internal_error", message: "failed to delete purchase" }, 500);
+    return respondWithError(c, err, "failed to delete purchase");
   }
 });

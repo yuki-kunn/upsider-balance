@@ -12,6 +12,7 @@ import {
   ValidationError,
 } from "../lib/validation.js";
 import { resolveFacilityIdForUser } from "../lib/facility.js";
+import { respondWithError } from "../lib/error-response.js";
 
 export const purchasesRoute = new Hono<AppEnv>();
 
@@ -90,11 +91,7 @@ purchasesRoute.post("/", requireRole("facility", "admin"), async (c) => {
       201,
     );
   } catch (err) {
-    if (err instanceof ValidationError) {
-      return c.json({ error: "bad_request", message: err.message }, 400);
-    }
-    console.error("POST /purchases failed", err);
-    return c.json({ error: "internal_error", message: "failed to create purchase" }, 500);
+    return respondWithError(c, err, "failed to create purchase");
   }
 });
 

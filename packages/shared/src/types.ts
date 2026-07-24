@@ -66,6 +66,20 @@ export type CustomClaims =
   | { role: "facility"; facilityId: string }
   | { role: "admin" };
 
+/**
+ * FirebaseのdecodedTokenのようなunknown由来の値をCustomClaimsとして検証する型ガード。
+ * ロール判定を手動if文の点在ではなく単一の検証ロジックに集約する（tech-debt issue #11）。
+ */
+export function parseCustomClaims(value: { role?: unknown; facilityId?: unknown }): CustomClaims | null {
+  if (value.role === "admin") {
+    return { role: "admin" };
+  }
+  if (value.role === "facility" && typeof value.facilityId === "string" && value.facilityId.length > 0) {
+    return { role: "facility", facilityId: value.facilityId };
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // API リクエスト/レスポンス型
 // ---------------------------------------------------------------------------
