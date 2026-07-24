@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { Balance, Purchase } from "@upsider-balance/shared";
+  import type { Balance, Purchase, AnalyzeReceiptResponse } from "@upsider-balance/shared";
   import { apiGet, apiPost } from "$lib/api-client";
   import { logout } from "$lib/auth";
   import { goto } from "$app/navigation";
+  import { uploadReceiptImage, ReceiptUploadError } from "$lib/receipt-upload";
 
   let balance = $state<Balance | null>(null);
   let balanceError = $state("");
@@ -12,6 +13,12 @@
   let memo = $state("");
   let submitting = $state(false);
   let submitError = $state("");
+
+  let receiptFile = $state<File | null>(null);
+  let receiptImagePath = $state<string | null>(null);
+  let analyzing = $state(false);
+  let analyzeError = $state("");
+  let analyzeResult = $state<AnalyzeReceiptResponse | null>(null);
 
   let purchases = $state<Purchase[]>([]);
   let nextCursor = $state<string | null>(null);
@@ -68,14 +75,53 @@
       await apiPost("/purchases", {
         amount: amountValue,
         memo: memo.trim().length > 0 ? memo.trim() : null,
+        receiptImagePath,
+        receiptOcrRaw: analyzeResult?.raw ?? null,
       });
       amount = "";
       memo = "";
+      receiptFile = null;
+      receiptImagePath = null;
+      analyzeResult = null;
       await Promise.all([loadBalance(), loadPurchases()]);
     } catch {
       submitError = "購入登録に失敗しました";
     } finally {
       submitting = false;
+    }
+  }
+
+  function handleReceiptFileChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    receiptFile = input.files?.[0] ?? null;
+    analyzeError = "";
+    analyzeResult = null;
+    receiptImagePath = null;
+  }
+
+  async function handleAnalyzeReceipt() {
+    if (!receiptFile) return;
+    analyzeError = "";
+    analyzing = true;
+    try {
+      const path = await uploadReceiptImage(receiptFile);
+      receiptImagePath = path;
+      const result = await apiPost<AnalyzeReceiptResponse>("/receipts/analyze", {
+        receiptImagePath: path,
+      });
+      analyzeResult = result;
+      // 解析結果はプリフィルのみ行い、スタッフが確認・修正してから登録する（自動登録はしない）
+      if (result.amountCandidates.length > 0) {
+        amount = String(result.amountCandidates[0]);
+      }
+      const memoParts = [...result.storeNameCandidates, ...result.itemCandidates];
+      if (memoParts.length > 0) {
+        memo = memoParts.join(" ");
+      }
+    } catch (e) {
+      analyzeError = e instanceof ReceiptUploadError ? e.message : "レシート画像の解析に失敗しました";
+    } finally {
+      analyzing = false;
     }
   }
 
@@ -106,6 +152,29 @@
 
   <section>
     <h2>購入登録</h2>
+
+    <div class="receipt-upload">
+      <label for="receiptFile">レシート写真（任意、AIが金額・品目を読み取ります）</label>
+      <input
+        id="receiptFile"
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/heic"
+        onchange={handleReceiptFileChange}
+        disabled={analyzing}
+      />
+      {#if receiptFile}
+        <button type="button" onclick={handleAnalyzeReceipt} disabled={analyzing || !!receiptImagePath}>
+          {analyzing ? "解析中..." : receiptImagePath ? "解析済み" : "この画像を解析する"}
+        </button>
+      {/if}
+      {#if analyzeError}
+        <p role="alert">{analyzeError}</p>
+      {/if}
+      {#if analyzeResult}
+        <p class="analyze-hint">解析結果を金額・メモ欄に反映しました。内容を確認・修正してから登録してください。</p>
+      {/if}
+    </div>
+
     <form onsubmit={handlePurchaseSubmit}>
       <div>
         <label for="amount">金額</label>
@@ -176,6 +245,18 @@
   }
   .purchase-date {
     color: #888;
+    font-size: 0.85rem;
+  }
+  .receipt-upload {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px dashed #ccc;
+  }
+  .analyze-hint {
+    color: #2e7d32;
     font-size: 0.85rem;
   }
 </style>
