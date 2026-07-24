@@ -116,3 +116,9 @@
 - 原因: Googleが`gemini-2.5-flash`を新規ユーザー向けには提供終了しており、一覧表示と実際の利用可否が一致していなかった（既存ユーザーの後方互換のためモデル名自体は残っている）。
 - 解決策: `models.generateContent`の`model`パラメータを`gemini-3.5-flash`に変更した。テキスト生成・画像入力（inlineData）・`responseSchema`による構造化JSON出力のいずれも問題なく動作することを確認済み。
 - 関連ファイル: `packages/web/src/lib/server/lib/gemini.ts`
+
+## 2026-07-24 Firebase Admin SDKにstorageBucketを渡していなかったためレシート解析が失敗
+- 症状: レシート画像アップロード後、`POST /api/receipts/analyze`が500エラー。サーバーログに`Bucket name not specified or invalid. Specify a valid bucket name via the storageBucket option when initializing the app...`
+- 原因: `lib/firestore.ts`の`initializeApp()`で`credential`と`projectId`のみを渡しており、`storageBucket`オプションが未指定だった。サービスアカウント鍵JSON自体にはバケット名の情報が含まれないため、`getAdminStorage().bucket()`（デフォルトバケット取得）が失敗していた。
+- 解決策: `initializeApp()`に`storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET`を追加し、クライアント用に既に設定していた環境変数をサーバー側でも流用するようにした。
+- 関連ファイル: `packages/web/src/lib/server/lib/firestore.ts`

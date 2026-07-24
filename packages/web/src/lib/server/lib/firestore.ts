@@ -34,6 +34,9 @@ function ensureApp() {
     initializeApp({
       credential: cert(serviceAccount),
       projectId: serviceAccount.projectId,
+      // Firebase Storageバケット名。サービスアカウント鍵には含まれないため、
+      // クライアント設定と同じ値を別途環境変数(VITE_FIREBASE_STORAGE_BUCKET)から渡す。
+      storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET,
     });
   }
 }
