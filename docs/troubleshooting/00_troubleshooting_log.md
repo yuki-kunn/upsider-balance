@@ -73,3 +73,22 @@
 - 原因: ローカルNode.js実行環境では、Cloud Functions実行環境のような自動的なprojectId解決が働かないケースがある。
 - 解決策: `scripts/create-account.ts`で、`GOOGLE_APPLICATION_CREDENTIALS`が指すJSONファイルを`readFileSync`で読み込み、`cert(serviceAccount)`と`projectId: serviceAccount.project_id`を明示的に`initializeApp()`に渡すよう変更した。
 - 関連ファイル: `scripts/create-account.ts`
+
+## 2026-07-24 web/src/lib/auth.tsとscripts/create-account.tsで疑似メール変換ロジックが不一致だった（issue #14）
+- 症状: Sprint2着手時に発見。フロントエンドの`facilityIdToEmail`/`adminIdToEmail`が`facility-${id}@login.upsider-balance.internal`形式を生成していたが、実際にSprint1で動作検証したアカウント作成スクリプトは`${id}@facility.upsider-balance.local`形式だった。このままではフロントエンドからのログインが常に失敗する。
+- 原因: Sprint0でweb/functionsパッケージを並行実装した際、各担当が設計書の記述を独自解釈し、ドメイン・プレフィックス形式が揃わなかった。Sprint1でcreate-account.ts側だけ動作検証し、auth.ts側との整合確認をしていなかった。
+- 解決策: `packages/web/src/lib/auth.ts`を`scripts/create-account.ts`の実装（動作検証済みの方）に合わせて修正。
+- 再発防止: 変換ロジックの共通化をissue #15として起票。
+- 関連ファイル: `packages/web/src/lib/auth.ts`, `scripts/create-account.ts`
+
+## 2026-07-24 開発サーバーで /api/** がCloud Functionsに届かない
+- 症状: `vite dev`だけを起動しても、ダッシュボードからのAPI呼び出し（`/api/balance`等）が404になる。
+- 原因: 本番はFirebase Hostingの`rewrites`設定（`/api/**` → Cloud Functions）が処理するが、開発サーバーにはその仕組みがない。
+- 解決策: `packages/web/vite.config.ts`に`server.proxy`を追加し、`/api`宛のリクエストを`http://localhost:5001`（ローカルで起動したHono/Functions）にプロキシしてパスの`/api`プレフィックスを剥がすようにした。
+- 関連ファイル: `packages/web/vite.config.ts`
+
+## 2026-07-24 WSL環境でlocalhost名前解決がIPv6優先になりcurl/Playwrightが接続失敗する
+- 症状: `curl http://localhost:5173/`や、Playwrightで`page.goto("http://localhost:5173/")`が接続失敗・タイムアウトすることがあった。
+- 原因: WSL環境で`localhost`が`::1`(IPv6)に先に解決され、実際にリッスンしているのはIPv4のみだったため接続が失敗していた。
+- 解決策: 動作確認・自動化スクリプトでは`localhost`ではなく`127.0.0.1`を明示的に使う。
+- 関連ファイル: なし（環境起因の制約、検証スクリプト側で回避）
