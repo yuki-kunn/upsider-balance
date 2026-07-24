@@ -42,6 +42,13 @@ export interface Purchase {
   facilityId: string;
 }
 
+/**
+ * GET /api/purchases のレスポンス項目。
+ * 一覧表示では不要な receiptOcrRaw（Gemini解析生データ）を除外した型
+ * （転送量削減、tech-debt issue #10対応）。
+ */
+export type PurchaseListItem = Omit<Purchase, "receiptOcrRaw">;
+
 /** admins/{adminId} */
 export interface Admin {
   loginId: string;

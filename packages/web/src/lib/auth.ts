@@ -5,21 +5,8 @@ import {
   type User
 } from "firebase/auth";
 import { readable } from "svelte/store";
+import { facilityIdToEmail, adminIdToEmail } from "@upsider-balance/shared";
 import { auth } from "./firebase";
-
-// scripts/create-account.ts のドメイン・変換ルールと必ず一致させること
-const FACILITY_EMAIL_DOMAIN = "facility.upsider-balance.local";
-const ADMIN_EMAIL_DOMAIN = "admin.upsider-balance.local";
-
-/** 施設IDを疑似メールアドレスに変換する（ユーザーには見せない内部実装） */
-function facilityIdToEmail(facilityId: string): string {
-  return `${facilityId}@${FACILITY_EMAIL_DOMAIN}`;
-}
-
-/** adminIDを疑似メールアドレスに変換する（ユーザーには見せない内部実装） */
-function adminIdToEmail(adminId: string): string {
-  return `${adminId}@${ADMIN_EMAIL_DOMAIN}`;
-}
 
 /** 施設ID・PASSでログインする */
 export async function loginAsFacility(facilityId: string, password: string) {

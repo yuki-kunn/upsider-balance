@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import type { CreatePurchaseRequest, Purchase } from "@upsider-balance/shared";
+import type { CreatePurchaseRequest, PurchaseListItem } from "@upsider-balance/shared";
 import type { AppEnv } from "../middleware/auth.js";
 import { requireRole } from "../middleware/auth.js";
 import { getDb } from "../lib/firestore.js";
@@ -128,7 +128,9 @@ purchasesRoute.get("/", requireRole("facility", "admin"), async (c) => {
   }
 
   const snap = await query.get();
-  const purchases: Purchase[] = snap.docs.map((doc) => {
+  // 一覧表示にはreceiptOcrRaw（Gemini解析の生データ）は不要なため含めない。
+  // 履歴が増えるほど転送量が無駄に増えるのを防ぐ（tech-debt issue #10）。
+  const purchases: PurchaseListItem[] = snap.docs.map((doc) => {
     const data = doc.data();
     return {
       id: doc.id,
@@ -136,7 +138,6 @@ purchasesRoute.get("/", requireRole("facility", "admin"), async (c) => {
       memo: data.memo ?? null,
       purchasedAt: (data.purchasedAt as FirebaseFirestore.Timestamp).toMillis(),
       receiptImagePath: data.receiptImagePath ?? null,
-      receiptOcrRaw: data.receiptOcrRaw ?? null,
       createdAt: (data.createdAt as FirebaseFirestore.Timestamp)?.toMillis?.() ?? Date.now(),
       updatedAt: (data.updatedAt as FirebaseFirestore.Timestamp)?.toMillis?.() ?? Date.now(),
       editedByAdmin: Boolean(data.editedByAdmin),

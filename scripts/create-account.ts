@@ -21,6 +21,7 @@ import { readFileSync } from "node:fs";
 import { cert, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { facilityIdToEmail, adminIdToEmail } from "@upsider-balance/shared";
 
 function initApp() {
   // GOOGLE_APPLICATION_CREDENTIALS が指すサービスアカウントJSONを明示的に読み込む。
@@ -35,14 +36,10 @@ function initApp() {
   initializeApp();
 }
 
-const FACILITY_EMAIL_DOMAIN = "facility.upsider-balance.local";
-const ADMIN_EMAIL_DOMAIN = "admin.upsider-balance.local";
-
 type Role = "facility" | "admin";
 
 function toEmail(role: Role, id: string): string {
-  const domain = role === "facility" ? FACILITY_EMAIL_DOMAIN : ADMIN_EMAIL_DOMAIN;
-  return `${id}@${domain}`;
+  return role === "facility" ? facilityIdToEmail(id) : adminIdToEmail(id);
 }
 
 async function main() {

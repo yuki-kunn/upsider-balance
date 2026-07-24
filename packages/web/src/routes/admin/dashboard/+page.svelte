@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { Balance, Purchase } from "@upsider-balance/shared";
+  import type { Balance, PurchaseListItem } from "@upsider-balance/shared";
   import { apiGet, apiPatch, apiDelete } from "$lib/api-client";
   import { logout } from "$lib/auth";
   import { goto } from "$app/navigation";
@@ -13,7 +13,7 @@
   let balanceSubmitting = $state(false);
   let balanceSubmitError = $state("");
 
-  let purchases = $state<Purchase[]>([]);
+  let purchases = $state<PurchaseListItem[]>([]);
   let nextCursor = $state<string | null>(null);
   let historyLoading = $state(false);
   let historyError = $state("");
@@ -41,7 +41,7 @@
     historyError = "";
     try {
       const query = !reset && nextCursor ? `?cursor=${encodeURIComponent(nextCursor)}` : "";
-      const res = await apiGet<{ purchases: Purchase[]; nextCursor: string | null }>(`/purchases${query}`);
+      const res = await apiGet<{ purchases: PurchaseListItem[]; nextCursor: string | null }>(`/purchases${query}`);
       purchases = reset ? res.purchases : [...purchases, ...res.purchases];
       nextCursor = res.nextCursor;
     } catch {
@@ -84,7 +84,7 @@
     }
   }
 
-  function startEdit(purchase: Purchase) {
+  function startEdit(purchase: PurchaseListItem) {
     editingId = purchase.id;
     editAmount = String(purchase.amount);
     editMemo = purchase.memo ?? "";
