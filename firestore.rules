@@ -8,24 +8,28 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && request.auth.token.role == 'admin';
     }
-    function isFacility() {
-      return isSignedIn() && request.auth.token.role == 'facility';
+    function isOwnFacility(facilityId) {
+      return isSignedIn()
+             && request.auth.token.role == 'facility'
+             && request.auth.token.facilityId == facilityId;
     }
-    function isStaffOrAdmin() {
-      return isFacility() || isAdmin();
+    function canReadFacility(facilityId) {
+      // adminは単一施設運用の前提で全施設を読める。施設ロールは自分のfacilityIdのみ読める
+      // （Custom Claimsのfacilityidと一致するかを検証し、他施設ドキュメントへの直接読み取りを防ぐ）。
+      return isAdmin() || isOwnFacility(facilityId);
     }
 
     match /facilities/{facilityId} {
-      allow read: if isStaffOrAdmin();
+      allow read: if canReadFacility(facilityId);
       allow write: if false;
 
       match /balance/current {
-        allow read: if isStaffOrAdmin();
+        allow read: if canReadFacility(facilityId);
         allow write: if false;
       }
 
       match /purchases/{purchaseId} {
-        allow read: if isStaffOrAdmin();
+        allow read: if canReadFacility(facilityId);
         allow write: if false;
       }
     }
@@ -35,6 +39,10 @@ service cloud.firestore {
     }
 
     match /loginAttempts/{docId} {
+      allow read, write: if false;
+    }
+
+    match /geminiUsage/{docId} {
       allow read, write: if false;
     }
   }

@@ -15,8 +15,8 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
 
   const res = await fetch(`/api${path}`, { ...init, headers });
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${text}`);
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.message ?? `API error ${res.status}`);
   }
   return res;
 }

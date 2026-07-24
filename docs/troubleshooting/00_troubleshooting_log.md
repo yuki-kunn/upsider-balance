@@ -122,3 +122,9 @@
 - 原因: `lib/firestore.ts`の`initializeApp()`で`credential`と`projectId`のみを渡しており、`storageBucket`オプションが未指定だった。サービスアカウント鍵JSON自体にはバケット名の情報が含まれないため、`getAdminStorage().bucket()`（デフォルトバケット取得）が失敗していた。
 - 解決策: `initializeApp()`に`storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET`を追加し、クライアント用に既に設定していた環境変数をサーバー側でも流用するようにした。
 - 関連ファイル: `packages/web/src/lib/server/lib/firestore.ts`
+
+## 2026-07-24 Gemini日次レート制限が画像バリデーション失敗時にも消費されていた
+- 症状: `/code-review`（Sprint5レビュー）で2つの独立エージェントから同一指摘。`POST /receipts/analyze`で`assertGeminiRateLimit`を画像の存在確認・MIME・サイズチェックより前に呼んでいたため、存在しないパスや不正な画像への連打だけで日次枠（50回/日）を消費でき、実際にGeminiを一度も呼ばずに正当な利用がレート制限される恐れがあった。
+- 原因: レート制限チェックの実装時、「Geminiを呼ぶ直前でカウントする」という意図に対し、実装順序が画像バリデーションより先になっていた。
+- 解決策: `assertGeminiRateLimit`の呼び出しを画像の存在確認・MIME・サイズチェックの後、Gemini呼び出し直前に移動。不正なリクエストを3回連打してもカウンタドキュメントが作成されないこと、正常な解析では正しくcount=1になることをE2Eで確認済み。
+- 関連ファイル: `packages/web/src/lib/server/routes/receipts.ts`
