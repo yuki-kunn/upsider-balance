@@ -10,8 +10,8 @@
  * （02_security.md 2.1 / 01_architecture.md 2.2）。
  *
  * 使い方:
- *   pnpm --filter @upsider-balance/functions exec tsx ../../scripts/create-account.ts facility <facilityId> <password> [displayName]
- *   pnpm --filter @upsider-balance/functions exec tsx ../../scripts/create-account.ts admin <adminId> <password>
+ *   pnpm create-account facility <facilityId> <password> [displayName]
+ *   pnpm create-account admin <adminId> <password>
  *
  * エミュレータに対して実行する場合は、実行前に以下の環境変数を設定すること:
  *   export FIREBASE_AUTH_EMULATOR_HOST=localhost:9099

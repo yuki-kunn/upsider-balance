@@ -1,17 +1,8 @@
 import { sveltekit } from "@sveltejs/kit/vite";
 import { defineConfig } from "vite";
 
-// 本番はFirebase Hostingのrewrites(/api/**)がCloud Functionsに転送するが、
-// 開発サーバーではviteのproxyで同等の挙動を再現する。
+// /api/** はSvelteKit自身のAPI Route (routes/api/[...path]/+server.ts) が処理するため、
+// 開発サーバーでも外部へのproxyは不要（Vercel移行前はCloud Functionsへのproxyが必要だった）。
 export default defineConfig({
-  plugins: [sveltekit()],
-  server: {
-    proxy: {
-      "/api": {
-        target: "http://localhost:5001",
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, "")
-      }
-    }
-  }
+  plugins: [sveltekit()]
 });

@@ -7,15 +7,17 @@
 - 実装中に発覚した技術的な制約・回避策・ハマりどころは `docs/troubleshooting/` に追記する。
 - 「今後全エージェントが従うべきルール」（コーディング規約、命名規則、ライブラリ選定の理由等）はこのファイルに追記する。
 
-## 技術スタック（確定）
-- フロントエンド: SvelteKit（`adapter-static`によるSPA構成）
-- バックエンド: Hono（Cloud Functions for Firebase、単一エントリポイント）
-- DB: Firestore
-- 認証: Firebase Authentication（施設ID/adminIDを疑似メールに変換、Custom Claimsでロール管理）
-- ストレージ: Firebase Storage（レシート画像）
-- 画像解析: Gemini 2.5 Flash（AI Studio APIキー方式、サーバー側=Hono経由のみで呼び出す）
-- ホスティング: Firebase Hosting（無料サブドメイン、独自ドメインなし）
-- モノレポ構成: pnpm workspaces（`packages/web`, `packages/functions`, `packages/shared`）
+## 技術スタック（確定、2026-07-24 Vercel移行後）
+- フロントエンド: SvelteKit（`adapter-vercel`、SSR構成）
+- バックエンド: Hono（`packages/web/src/lib/server/`に統合し、`routes/api/[...path]/+server.ts`経由でSvelteKit API Routeとして実行）
+- ホスティング: Vercel（web/API込みで単一デプロイ）
+- DB/認証/ストレージ: Firestore / Firebase Authentication / Firebase Storage（引き続きFirebaseのマネージドサービスを利用。Admin SDKはサービスアカウント鍵を環境変数`FIREBASE_SERVICE_ACCOUNT_KEY`経由で初期化）
+- 認証方式: 施設ID/adminIDを疑似メールに変換、Custom Claimsでロール管理（変更なし）
+- 画像解析: Gemini 2.5 Flash（APIキーはVercelの環境変数`GEMINI_API_KEY`、サーバー側のみで呼び出す）
+- モノレポ構成: pnpm workspaces（`packages/web`, `packages/shared`。`packages/functions`はVercel移行に伴い廃止・削除済み）
+
+### Firebase Hostingを断念した経緯
+当初はFirebase Hosting + Cloud Functions for Firebase構成だったが、Cloud Functions(Gen2)のIAM invoker権限（Cloud Runの未認証アクセス許可）が個人プロジェクトの新しいセキュリティベースラインでブロックされ、`allUsers`等の付与ができない問題に直面したためVercelに切り替えた。詳細は [00_troubleshooting_log.md](../troubleshooting/00_troubleshooting_log.md) の該当エントリを参照。
 
 ## 確定した仕様上の重要ルール
 1. スタッフ個人は識別・記録しない（誰が購入したかは保存しない）。
@@ -35,6 +37,11 @@
 - ローカルでAdmin SDKを使うスクリプト（`scripts/create-account.ts`等）を実行する際は `export GOOGLE_APPLICATION_CREDENTIALS=/home/yuki/.secrets/upsider-balance-adminsdk.json` を設定してから実行する。
 - このキーを他の場所（ダウンロードフォルダ等）にコピーしたままにしない。作業後は都度確認して重複コピーを削除する。
 - Firebase Web SDKのクライアント設定値（apiKey等）は `firebase apps:sdkconfig WEB <appId> --project upsider-balance` で取得できる。これは公開情報として扱ってよい値（クライアントに埋め込む前提のキー）であり、サービスアカウント鍵とは機密度が異なる。
+
+## Vercel環境変数の登録ルール
+- クライアントに公開される前提の値（`VITE_`プレフィックス、Firebase Web SDK設定等）は `vercel env add <name> production --no-sensitive --value "<value>" --yes` で **Non-sensitive** として登録する。Sensitiveのままだと`vercel pull`/`vercel build`でプレースホルダー`"[SENSITIVE]"`しか取得できずビルドに実際の値が埋め込まれない（詳細は troubleshooting ログ参照）。
+- サーバー専用の機密情報（`FIREBASE_SERVICE_ACCOUNT_KEY`, `GEMINI_API_KEY`）はデフォルトのSensitiveのまま登録してよい（クライアントバンドルに含まれないため）。
+- ローカルでVercel本番相当のビルドを検証する場合は `vercel pull --yes --environment production` → `vercel build --prod` → `vercel deploy --prebuilt --prod` の順で行う。
 
 ## ブランチ・PR運用ルール（2026-07-24〜）
 - ブランチ命名: `feat/xxx`, `fix/xxx`, `chore/xxx`, `docs/xxx` など Conventional Commits 準拠のプレフィックスを使う。

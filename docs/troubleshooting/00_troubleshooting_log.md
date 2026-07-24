@@ -92,3 +92,21 @@
 - 原因: WSL環境で`localhost`が`::1`(IPv6)に先に解決され、実際にリッスンしているのはIPv4のみだったため接続が失敗していた。
 - 解決策: 動作確認・自動化スクリプトでは`localhost`ではなく`127.0.0.1`を明示的に使う。
 - 関連ファイル: なし（環境起因の制約、検証スクリプト側で回避）
+
+## 2026-07-24 Firebase Cloud Functions(Gen2)のIAM invoker権限が個人プロジェクトで付与できずFirebase Hostingを断念、Vercelに移行
+- 症状: `firebase deploy --only hosting,functions`は成功するが、Firebase Hosting経由・Cloud Run直URL経由のいずれもAPI呼び出しが全て401（GFEレベルの`Your client does not have permission to the requested URL`）になった。Cloud ConsoleのIAM画面で`allUsers`や`service-<project>@gcp-sa-firebasehosting.iam.gserviceaccount.com`にCloud Run起動元ロールを付与しようとしても「タイプがallUsersやallAuthenticatedUsersのプリンシパルをこのリソースに追加することはできません」等のエラーで拒否された。Cloud Functions側の`onRequest`に`invoker: "public"`を指定して再デプロイしても解消しなかった。
+- 原因: 2024年末以降に作成されたGoogle Cloudプロジェクトでは、Cloud Runサービスへの未認証アクセスを制限するセキュリティベースライン（`run.managed.requireInvokerIam`相当）がデフォルトで有効になっており、個人アカウントでもallUsers等の追加がブロックされる。サービスアカウント経由でのIAMポリシー確認・操作も権限不足（`run.services.getIamPolicy`が無い）で行えなかった。
+- 解決策: Firebase Hosting + Cloud Functionsでのバックエンドホスティングを断念し、Hono APIをSvelteKitの`routes/api/[...path]/+server.ts`に統合してVercelにデプロイする構成に変更した。Firestore/Storage/Firebase Authenticationは引き続きFirebase側で運用し、Admin SDK（Vercel環境ではサービスアカウント鍵をJSON文字列の環境変数`FIREBASE_SERVICE_ACCOUNT_KEY`として渡す）・Client SDKからアクセスする。
+- 関連ファイル: `packages/web/src/lib/server/**`（旧`packages/functions/src`から移設）, `packages/web/src/routes/api/[...path]/+server.ts`, `firebase.json`（hosting/functionsセクション削除）, `packages/functions/`（削除）
+
+## 2026-07-24 Honoアプリのルーティングパスと`+server.ts`委譲先のパスが不一致で404
+- 症状: Vercel移行後、`/api/balance`等が全て404になった。
+- 原因: Honoアプリ（`app.ts`）はCloud Functions時代の名残で`/balance`等をルートパスとしてルーティングしていたが、SvelteKitの`routes/api/[...path]/+server.ts`はリクエストをそのまま（`/api/balance`のまま）`app.fetch()`に渡していたため、Honoのルーティングと一致しなかった。
+- 解決策: `new Hono().basePath("/api")`でHonoアプリ自体に`/api`プレフィックスを吸収させ、`app.route("/balance", ...)`等はそのままで`/api/balance`にマッチするようにした。
+- 関連ファイル: `packages/web/src/lib/server/app.ts`
+
+## 2026-07-24 Vercel環境変数を`--sensitive`（デフォルト）で登録するとvercel pull/buildで実際の値が取得できない
+- 症状: `vercel env add`で登録したFirebase Web SDK設定（`VITE_FIREBASE_API_KEY`等）が、`vercel pull`後のローカルの`.vercel/.env.production.local`に実際の値ではなく文字列`"[SENSITIVE]"`として書き込まれ、そのままビルドに埋め込まれてしまい、本番で`Firebase: API key not valid`エラーになった。
+- 原因: Vercelの環境変数にはSensitive（デフォルト）とNon-sensitiveの区別があり、Sensitiveタイプはvercel CLIの`pull`/`build`では値をローカルに一切降ろさない設計（値の再表示・取得ができない）になっている。クライアントサイドに埋め込む前提の`VITE_`変数をSensitiveのまま登録すると、ローカルビルドでは常にプレースホルダーが使われてしまう。
+- 解決策: 該当の環境変数を`vercel env rm`で削除し、`vercel env add <name> production --no-sensitive --value "<value>" --yes`でNon-sensitiveとして再登録した。クライアントに公開される前提の値（Firebase Web SDK設定等）はNon-sensitiveで登録し、`FIREBASE_SERVICE_ACCOUNT_KEY`のようなサーバー専用の機密情報はSensitiveのままにする。
+- 関連ファイル: Vercelプロジェクト環境変数設定（コードファイルへの変更なし）
