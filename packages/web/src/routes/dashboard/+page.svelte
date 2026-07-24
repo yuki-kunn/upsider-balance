@@ -4,7 +4,7 @@
   import { apiGet, apiPost } from "$lib/api-client";
   import { logout } from "$lib/auth";
   import { goto } from "$app/navigation";
-  import { uploadReceiptImage, ReceiptUploadError } from "$lib/receipt-upload";
+  import { uploadReceiptImage } from "$lib/receipt-upload";
 
   let balance = $state<Balance | null>(null);
   let balanceError = $state("");
@@ -119,7 +119,7 @@
         memo = memoParts.join(" ");
       }
     } catch (e) {
-      analyzeError = e instanceof ReceiptUploadError ? e.message : "レシート画像の解析に失敗しました";
+      analyzeError = e instanceof Error ? e.message : "レシート画像の解析に失敗しました";
     } finally {
       analyzing = false;
     }

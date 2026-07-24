@@ -7,6 +7,7 @@ import { analyzeReceiptImage } from "../lib/gemini.js";
 import { getDb } from "../lib/firestore.js";
 import { resolveFacilityIdForUser } from "../lib/facility.js";
 import { ValidationError } from "../lib/validation.js";
+import { assertGeminiRateLimit, RateLimitError } from "../lib/rate-limit.js";
 
 export const receiptsRoute = new Hono<AppEnv>();
 
@@ -65,6 +66,10 @@ receiptsRoute.post("/analyze", requireRole("facility", "admin"), async (c) => {
       return c.json({ error: "bad_request", message: "image exceeds 10MB limit" }, 400);
     }
 
+    // レート制限のカウントは、実際にGeminiを呼び出す直前（バリデーション通過後）で行う。
+    // 先にチェックすると、存在しないパスや不正な画像への連打だけで日次枠を消費させられてしまう。
+    await assertGeminiRateLimit(db, facilityId);
+
     const [imageBytes] = await file.download();
 
     const result = await analyzeReceiptImage(imageBytes, mimeType);
@@ -78,6 +83,9 @@ receiptsRoute.post("/analyze", requireRole("facility", "admin"), async (c) => {
 
     return c.json(response);
   } catch (err) {
+    if (err instanceof RateLimitError) {
+      return c.json({ error: "rate_limited", message: err.message }, 429);
+    }
     if (err instanceof ValidationError) {
       return c.json({ error: "bad_request", message: err.message }, 400);
     }
