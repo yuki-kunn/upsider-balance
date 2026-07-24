@@ -1,6 +1,7 @@
 import type { Context, Next } from "hono";
 import { createMiddleware } from "hono/factory";
 import type { UserRole } from "@upsider-balance/shared";
+import { parseCustomClaims } from "@upsider-balance/shared";
 import { getAdminAuth } from "../lib/firestore.js";
 
 /**
@@ -38,18 +39,17 @@ export const verifyIdToken = createMiddleware<AppEnv>(async (c: Context<AppEnv>,
 
   try {
     const decoded = await getAdminAuth().verifyIdToken(idToken);
-    const role = decoded.role as UserRole | undefined;
+    const claims = parseCustomClaims(decoded as { role?: unknown; facilityId?: unknown });
 
-    if (role !== "facility" && role !== "admin") {
+    if (!claims) {
       return c.json({ error: "forbidden", message: "role claim is missing or invalid" }, 403);
     }
 
-    const facilityId = role === "facility" ? ((decoded.facilityId as string | undefined) ?? null) : null;
-    if (role === "facility" && !facilityId) {
-      return c.json({ error: "forbidden", message: "facilityId claim is missing" }, 403);
-    }
-
-    const authUser: AuthUser = { uid: decoded.uid, role, facilityId };
+    const authUser: AuthUser = {
+      uid: decoded.uid,
+      role: claims.role,
+      facilityId: claims.role === "facility" ? claims.facilityId : null,
+    };
     c.set("authUser", authUser);
     await next();
   } catch (err) {

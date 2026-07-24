@@ -15,8 +15,11 @@ export class RateLimitError extends Error {
   }
 }
 
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
+/** 日本時間（JST, UTC+9）基準のYYYY-MM-DDを返す。単一施設が日本国内で運用される前提。 */
 function todayKey(): string {
-  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+  return new Date(Date.now() + JST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
 /**
