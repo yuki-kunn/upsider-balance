@@ -13,8 +13,7 @@
     loading = true;
     try {
       await loginAsAdmin(adminId, password);
-      // admin専用ダッシュボードは未実装のため、暫定でスタッフ用dashboardへ遷移する
-      await goto("/dashboard");
+      await goto("/admin/dashboard");
     } catch (e) {
       error = "admin IDまたはPASSが正しくありません";
     } finally {
