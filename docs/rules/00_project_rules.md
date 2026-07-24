@@ -13,7 +13,7 @@
 - ホスティング: Vercel（web/API込みで単一デプロイ）
 - DB/認証/ストレージ: Firestore / Firebase Authentication / Firebase Storage（引き続きFirebaseのマネージドサービスを利用。Admin SDKはサービスアカウント鍵を環境変数`FIREBASE_SERVICE_ACCOUNT_KEY`経由で初期化）
 - 認証方式: 施設ID/adminIDを疑似メールに変換、Custom Claimsでロール管理（変更なし）
-- 画像解析: Gemini 2.5 Flash（APIキーはVercelの環境変数`GEMINI_API_KEY`、サーバー側のみで呼び出す）
+- 画像解析: Gemini 3.5 Flash（2026-07-24時点、`gemini-2.5-flash`は新規利用者に提供終了のため変更。APIキーはVercelの環境変数`GEMINI_API_KEY`、サーバー側のみで呼び出す）
 - モノレポ構成: pnpm workspaces（`packages/web`, `packages/shared`。`packages/functions`はVercel移行に伴い廃止・削除済み）
 
 ### Firebase Hostingを断念した経緯

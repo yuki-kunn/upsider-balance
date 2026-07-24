@@ -110,3 +110,9 @@
 - 原因: Vercelの環境変数にはSensitive（デフォルト）とNon-sensitiveの区別があり、Sensitiveタイプはvercel CLIの`pull`/`build`では値をローカルに一切降ろさない設計（値の再表示・取得ができない）になっている。クライアントサイドに埋め込む前提の`VITE_`変数をSensitiveのまま登録すると、ローカルビルドでは常にプレースホルダーが使われてしまう。
 - 解決策: 該当の環境変数を`vercel env rm`で削除し、`vercel env add <name> production --no-sensitive --value "<value>" --yes`でNon-sensitiveとして再登録した。クライアントに公開される前提の値（Firebase Web SDK設定等）はNon-sensitiveで登録し、`FIREBASE_SERVICE_ACCOUNT_KEY`のようなサーバー専用の機密情報はSensitiveのままにする。
 - 関連ファイル: Vercelプロジェクト環境変数設定（コードファイルへの変更なし）
+
+## 2026-07-24 gemini-2.5-flashが新規APIキーでは404 (NOT_FOUND)
+- 症状: Gemini APIキー発行後、`lib/gemini.ts`で指定していた`gemini-2.5-flash`モデルを呼び出すと`This model models/gemini-2.5-flash is no longer available to new users.`という404エラーが返った。`GET /v1beta/models`の一覧には`gemini-2.5-flash`自体は表示されるが、新規発行のAPIキーでは実際には呼び出せない状態だった。
+- 原因: Googleが`gemini-2.5-flash`を新規ユーザー向けには提供終了しており、一覧表示と実際の利用可否が一致していなかった（既存ユーザーの後方互換のためモデル名自体は残っている）。
+- 解決策: `models.generateContent`の`model`パラメータを`gemini-3.5-flash`に変更した。テキスト生成・画像入力（inlineData）・`responseSchema`による構造化JSON出力のいずれも問題なく動作することを確認済み。
+- 関連ファイル: `packages/web/src/lib/server/lib/gemini.ts`
