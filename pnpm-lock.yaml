@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@upsider-balance/shared':
+        specifier: workspace:*
+        version: link:packages/shared
       firebase-admin:
         specifier: ^12.7.0
         version: 12.7.0

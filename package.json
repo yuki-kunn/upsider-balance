@@ -10,9 +10,10 @@
     "dev:web": "pnpm --filter web dev",
     "build": "pnpm --filter @upsider-balance/shared build && pnpm --filter web build",
     "emulators": "firebase emulators:start --only firestore,storage,auth",
-    "create-account": "tsx scripts/create-account.ts"
+    "create-account": "pnpm --filter @upsider-balance/shared build && tsx scripts/create-account.ts"
   },
   "devDependencies": {
+    "@upsider-balance/shared": "workspace:*",
     "firebase-admin": "^12.7.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0"
