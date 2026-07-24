@@ -1,25 +1,17 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { defineSecret } from "firebase-functions/params";
-
-/**
- * Gemini APIキー。Firebase Secret Manager経由で参照する。
- * コード内にAPIキーを直書きしない（02_security.md 6章）。
- * `firebase functions:secrets:set GEMINI_API_KEY` で登録済みの前提。
- */
-export const geminiApiKeySecret: ReturnType<typeof defineSecret> = defineSecret("GEMINI_API_KEY");
 
 let client: GoogleGenAI | undefined;
 
 /**
  * GoogleGenAIクライアントを遅延初期化する。
- * Secret Managerの値はランタイムの環境変数として注入されるため、
- * リクエストハンドラ内（Secretがbindされた後）で初めて呼び出すこと。
+ * Vercel環境では環境変数 `GEMINI_API_KEY` から直接読み取る
+ * （コード内にAPIキーを直書きしない。02_security.md 6章）。
  */
 function getGeminiClient(): GoogleGenAI {
   if (!client) {
-    const apiKey = geminiApiKeySecret.value();
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error("GEMINI_API_KEY secret is not configured");
+      throw new Error("GEMINI_API_KEY environment variable is not configured");
     }
     client = new GoogleGenAI({ apiKey });
   }

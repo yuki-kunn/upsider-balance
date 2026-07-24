@@ -5,11 +5,11 @@
   "engines": {
     "node": ">=20"
   },
+  "packageManager": "pnpm@11.17.0",
   "scripts": {
     "dev:web": "pnpm --filter web dev",
-    "dev:functions": "pnpm --filter @upsider-balance/functions build:watch",
-    "build": "pnpm --filter @upsider-balance/shared build && pnpm --filter web build && pnpm --filter @upsider-balance/functions build",
-    "emulators": "firebase emulators:start",
+    "build": "pnpm --filter @upsider-balance/shared build && pnpm --filter web build",
+    "emulators": "firebase emulators:start --only firestore,storage,auth",
     "create-account": "tsx scripts/create-account.ts"
   },
   "devDependencies": {
