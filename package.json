@@ -1,0 +1,14 @@
+{
+  "name": "upsider-balance",
+  "private": true,
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:functions": "pnpm --filter @upsider-balance/functions build:watch",
+    "build": "pnpm --filter @upsider-balance/shared build && pnpm --filter web build && pnpm --filter @upsider-balance/functions build",
+    "emulators": "firebase emulators:start"
+  }
+}

@@ -1,0 +1,14 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /facilities/{facilityId}/receipts/{fileName} {
+      allow read: if request.auth != null
+                  && (request.auth.token.role == 'facility' || request.auth.token.role == 'admin');
+      allow write: if request.auth != null
+                   && request.auth.token.role == 'facility'
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('image/(jpeg|png|webp|heic)');
+      allow delete: if request.auth != null && request.auth.token.role == 'admin';
+    }
+  }
+}

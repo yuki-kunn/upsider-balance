@@ -1,0 +1,14 @@
+node_modules/
+.pnpm-store/
+packages/web/build/
+packages/web/.svelte-kit/
+packages/functions/lib/
+packages/shared/dist/
+.firebase/
+*.log
+.env
+.env.*
+!.env.example
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
