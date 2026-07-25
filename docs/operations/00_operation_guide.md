@@ -42,3 +42,11 @@ adminアカウントは残額の直接編集・購入履歴の削除など強い
 ## 4. トラブル発生時の相談先
 
 アプリの動作不具合、ログインできない等の技術的な問題は、システム管理者（開発担当）に連絡してください。開発中に発生した既知の問題とその対応は [docs/troubleshooting/00_troubleshooting_log.md](../troubleshooting/00_troubleshooting_log.md) に記録されています。
+
+## 5. （システム管理者向け）コスト監視の運用
+
+以下はシステム管理者（Firebase/Vercel Consoleへのアクセス権を持つ人）向けの運用です。
+
+- Google Cloudの予算アラート（月500円）を設定済み。アラートメールを受け取ったら、[Firebase Console](https://console.firebase.google.com/project/upsider-balance/usage) と [Google Cloud Billing](https://console.cloud.google.com/billing) で詳細を確認する。
+- 想定利用規模（単一施設・小規模利用）では無料枠を大きく下回るため、毎月の定期確認は不要。四半期に一度程度、Firestore/Storageの無料枠使用状況を目視確認する程度で十分（詳細は [docs/design/03_cost_estimate.md](../design/03_cost_estimate.md) 5章）。
+- Gemini APIの日次レート制限（施設あたり50回/日）が想定より頻繁に上限に達する場合は、利用実態の異常（誤操作の連打、意図しないアクセス等）がないか確認する。
