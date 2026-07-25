@@ -94,6 +94,7 @@ scripts/
 - [docs/design/](docs/design/) — 要件定義・アーキテクチャ・セキュリティ設計・コスト試算・スプリント計画
 - [docs/rules/00_project_rules.md](docs/rules/00_project_rules.md) — プロジェクト共通ルール（技術スタック、確定仕様、ブランチ/PR運用）
 - [docs/troubleshooting/00_troubleshooting_log.md](docs/troubleshooting/00_troubleshooting_log.md) — 開発中に発生した問題と解決策の記録
+- [docs/operations/00_operation_guide.md](docs/operations/00_operation_guide.md) — 施設スタッフ・admin向け運用ガイド（共用端末の扱い、パスワード運用、端末紛失時の緊急対応）
 
 ## 開発フロー
 

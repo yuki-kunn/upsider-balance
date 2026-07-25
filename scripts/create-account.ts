@@ -9,6 +9,9 @@
  * セルフサインアップは提供しないため、アカウント発行は本スクリプト経由のみで行う
  * （02_security.md 2.1 / 01_architecture.md 2.2）。
  *
+ * admin PASSは施設PASSより強固なものにすること（長期セッション運用のため、
+ * admin端末紛失時の被害が大きい。docs/operations/00_operation_guide.md 参照）。
+ *
  * 使い方:
  *   pnpm create-account facility <facilityId> <password> [displayName]
  *   pnpm create-account admin <adminId> <password>
