@@ -1,0 +1,388 @@
+/*
+ * デザイントークン + ベーススタイル。
+ * 現金残額を「一目で把握する」業務ツールという性質上、装飾よりも
+ * 数値の視認性・状態の伝わりやすさ（残額のプラス/マイナス等）を優先する。
+ */
+
+:root {
+  /* --- 色（ライトモード基準） --- */
+  --color-bg: #f5f7fa;
+  --color-surface: #ffffff;
+  --color-surface-muted: #eef1f5;
+  --color-border: #dde3ea;
+  --color-ink: #1a1d23;
+  --color-ink-muted: #5b6472;
+  --color-ink-faint: #8891a0;
+  --color-accent: #2b6cb0;
+  --color-accent-ink: #ffffff;
+  --color-accent-soft: #e5f0fb;
+  --color-positive: #1f8a5c;
+  --color-positive-soft: #e4f5ed;
+  --color-negative: #c0392b;
+  --color-negative-soft: #fbe9e7;
+  --color-warning-soft: #fff3cd;
+  --color-warning-ink: #8a6516;
+
+  /* --- タイポグラフィ --- */
+  --font-ui:
+    "Hiragino Sans", "Hiragino Kaku Gothic ProN", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Noto Sans JP", sans-serif;
+  --font-numeric: "SF Pro Text", "Hiragino Sans", var(--font-ui);
+
+  /* --- スペーシング --- */
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+
+  /* --- 形状・影 --- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 2px rgba(20, 24, 32, 0.06);
+  --shadow-md: 0 4px 16px rgba(20, 24, 32, 0.08);
+
+  --content-max-width: 640px;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #14171c;
+    --color-surface: #1c2027;
+    --color-surface-muted: #262b34;
+    --color-border: #333a45;
+    --color-ink: #eef1f5;
+    --color-ink-muted: #a3acba;
+    --color-ink-faint: #767f8c;
+    --color-accent: #6ba6e0;
+    --color-accent-ink: #0c1620;
+    --color-accent-soft: #1f3040;
+    --color-positive: #4fbf8a;
+    --color-positive-soft: #17342a;
+    --color-negative: #e5766a;
+    --color-negative-soft: #3a2321;
+    --color-warning-soft: #3a3220;
+    --color-warning-ink: #e0c877;
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #14171c;
+  --color-surface: #1c2027;
+  --color-surface-muted: #262b34;
+  --color-border: #333a45;
+  --color-ink: #eef1f5;
+  --color-ink-muted: #a3acba;
+  --color-ink-faint: #767f8c;
+  --color-accent: #6ba6e0;
+  --color-accent-ink: #0c1620;
+  --color-accent-soft: #1f3040;
+  --color-positive: #4fbf8a;
+  --color-positive-soft: #17342a;
+  --color-negative: #e5766a;
+  --color-negative-soft: #3a2321;
+  --color-warning-soft: #3a3220;
+  --color-warning-ink: #e0c877;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --color-bg: #f5f7fa;
+  --color-surface: #ffffff;
+  --color-surface-muted: #eef1f5;
+  --color-border: #dde3ea;
+  --color-ink: #1a1d23;
+  --color-ink-muted: #5b6472;
+  --color-ink-faint: #8891a0;
+  --color-accent: #2b6cb0;
+  --color-accent-ink: #ffffff;
+  --color-accent-soft: #e5f0fb;
+  --color-positive: #1f8a5c;
+  --color-positive-soft: #e4f5ed;
+  --color-negative: #c0392b;
+  --color-negative-soft: #fbe9e7;
+  --color-warning-soft: #fff3cd;
+  --color-warning-ink: #8a6516;
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-size-adjust: 100%;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  text-wrap: balance;
+  font-weight: 700;
+}
+
+p {
+  margin: 0;
+}
+
+button,
+input {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--color-accent);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* --- 共通レイアウト・コンポーネント --- */
+
+.page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.page-header h1 {
+  font-size: 1.125rem;
+  letter-spacing: -0.01em;
+}
+
+.page-body {
+  flex: 1;
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  padding: var(--space-lg) var(--space-md) var(--space-2xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.card h2 {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.field label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+}
+
+.field input[type="text"],
+.field input[type="password"],
+.field input[type="number"] {
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+  outline: none;
+}
+
+.field input:disabled {
+  background: var(--color-surface-muted);
+  color: var(--color-ink-faint);
+}
+
+.field input[type="file"] {
+  font-size: 0.875rem;
+  color: var(--color-ink-muted);
+}
+
+.btn {
+  appearance: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.625rem 1.125rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease, transform 0.05s ease;
+  white-space: nowrap;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-accent) 88%, black);
+}
+
+.btn-secondary {
+  background: var(--color-surface-muted);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--color-border);
+}
+
+.btn-danger {
+  background: var(--color-negative-soft);
+  color: var(--color-negative);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-negative-soft) 70%, var(--color-negative) 30%);
+}
+
+.btn-sm {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.alert {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.alert-error {
+  background: var(--color-negative-soft);
+  color: var(--color-negative);
+}
+
+.alert-success {
+  background: var(--color-positive-soft);
+  color: var(--color-positive);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning-ink);
+}
+
+.balance-figure {
+  font-family: var(--font-numeric);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(2.25rem, 7vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-positive);
+}
+
+.balance-figure.is-negative {
+  color: var(--color-negative);
+}
+
+.text-muted {
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
+}
+
+.loading-screen {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-ink-muted);
+  font-size: 0.9375rem;
+}
