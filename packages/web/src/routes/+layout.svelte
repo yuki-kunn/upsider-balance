@@ -1,4 +1,5 @@
 <script lang="ts">
+  import "../app.css";
   import { currentUser } from "$lib/auth";
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
@@ -24,5 +25,5 @@
 {#if $currentUser !== undefined}
   {@render children()}
 {:else}
-  <p>読み込み中...</p>
+  <div class="loading-screen">読み込み中…</div>
 {/if}

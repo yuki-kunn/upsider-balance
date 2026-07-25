@@ -130,133 +130,182 @@
   }
 </script>
 
-<main>
-  <header>
+<div class="page">
+  <header class="page-header">
     <h1>残額ダッシュボード</h1>
-    <button onclick={handleLogout}>ログアウト</button>
+    <button class="btn btn-secondary btn-sm" onclick={handleLogout}>ログアウト</button>
   </header>
 
-  <section>
-    <h2>現在残額</h2>
-    {#if balanceError}
-      <p role="alert">{balanceError}</p>
-    {:else if balance === null}
-      <p>読み込み中...</p>
-    {:else}
-      <p class="balance" class:negative={balance.amount < 0}>{balance.amount.toLocaleString()}円</p>
-      {#if balance.amount < 0}
-        <p role="alert">残額がマイナスです</p>
+  <main class="page-body">
+    <section class="card balance-card">
+      <h2>現在残額</h2>
+      {#if balanceError}
+        <p class="alert alert-error" role="alert">{balanceError}</p>
+      {:else if balance === null}
+        <p class="text-muted">読み込み中…</p>
+      {:else}
+        <p class="balance-figure" class:is-negative={balance.amount < 0}>
+          {balance.amount.toLocaleString()}<span class="unit">円</span>
+        </p>
+        {#if balance.amount < 0}
+          <p class="alert alert-error" role="alert">残額がマイナスです</p>
+        {/if}
       {/if}
-    {/if}
-  </section>
+    </section>
 
-  <section>
-    <h2>購入登録</h2>
+    <section class="card">
+      <h2>購入登録</h2>
 
-    <div class="receipt-upload">
-      <label for="receiptFile">レシート写真（任意、AIが金額・品目を読み取ります）</label>
-      <input
-        id="receiptFile"
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/heic"
-        onchange={handleReceiptFileChange}
-        disabled={analyzing}
-      />
-      {#if receiptFile}
-        <button type="button" onclick={handleAnalyzeReceipt} disabled={analyzing || !!receiptImagePath}>
-          {analyzing ? "解析中..." : receiptImagePath ? "解析済み" : "この画像を解析する"}
+      <div class="receipt-upload">
+        <div class="field">
+          <label for="receiptFile">レシート写真（任意・AIが金額と品目を読み取ります）</label>
+          <input
+            id="receiptFile"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic"
+            onchange={handleReceiptFileChange}
+            disabled={analyzing}
+          />
+        </div>
+        {#if receiptFile}
+          <button
+            class="btn btn-secondary btn-sm"
+            type="button"
+            onclick={handleAnalyzeReceipt}
+            disabled={analyzing || !!receiptImagePath}
+          >
+            {analyzing ? "解析中…" : receiptImagePath ? "解析済み" : "この画像を解析する"}
+          </button>
+        {/if}
+        {#if analyzeError}
+          <p class="alert alert-error" role="alert">{analyzeError}</p>
+        {/if}
+        {#if analyzeResult}
+          <p class="alert alert-success">解析結果を金額・メモ欄に反映しました。内容を確認・修正してから登録してください。</p>
+        {/if}
+      </div>
+
+      <form onsubmit={handlePurchaseSubmit}>
+        <div class="field">
+          <label for="amount">金額</label>
+          <input id="amount" type="number" inputmode="numeric" bind:value={amount} required disabled={submitting} />
+        </div>
+        <div class="field">
+          <label for="memo">品目メモ（任意）</label>
+          <input id="memo" type="text" bind:value={memo} disabled={submitting} />
+        </div>
+        {#if submitError}
+          <p class="alert alert-error" role="alert">{submitError}</p>
+        {/if}
+        <button class="btn btn-primary" type="submit" disabled={submitting}>
+          {submitting ? "登録中…" : "登録する"}
+        </button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>購入履歴</h2>
+      {#if historyError}
+        <p class="alert alert-error" role="alert">{historyError}</p>
+      {/if}
+      {#if purchases.length === 0 && !historyLoading}
+        <p class="text-muted">購入履歴はありません</p>
+      {:else}
+        <ul class="purchase-list">
+          {#each purchases as purchase (purchase.id)}
+            <li>
+              <span class="purchase-amount">{purchase.amount.toLocaleString()}円</span>
+              <span class="purchase-memo">{purchase.memo ?? ""}</span>
+              <span class="purchase-date">{formatDateTime(purchase.purchasedAt)}</span>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+      {#if nextCursor}
+        <button class="btn btn-secondary btn-sm" onclick={() => loadPurchases(false)} disabled={historyLoading}>
+          {historyLoading ? "読み込み中…" : "もっと見る"}
         </button>
       {/if}
-      {#if analyzeError}
-        <p role="alert">{analyzeError}</p>
-      {/if}
-      {#if analyzeResult}
-        <p class="analyze-hint">解析結果を金額・メモ欄に反映しました。内容を確認・修正してから登録してください。</p>
-      {/if}
-    </div>
-
-    <form onsubmit={handlePurchaseSubmit}>
-      <div>
-        <label for="amount">金額</label>
-        <input id="amount" type="number" bind:value={amount} required disabled={submitting} />
-      </div>
-      <div>
-        <label for="memo">品目メモ（任意）</label>
-        <input id="memo" type="text" bind:value={memo} disabled={submitting} />
-      </div>
-      {#if submitError}
-        <p role="alert">{submitError}</p>
-      {/if}
-      <button type="submit" disabled={submitting}>{submitting ? "登録中..." : "登録"}</button>
-    </form>
-  </section>
-
-  <section>
-    <h2>購入履歴</h2>
-    {#if historyError}
-      <p role="alert">{historyError}</p>
-    {/if}
-    {#if purchases.length === 0 && !historyLoading}
-      <p>購入履歴はありません</p>
-    {:else}
-      <ul class="purchase-list">
-        {#each purchases as purchase (purchase.id)}
-          <li>
-            <span class="purchase-amount">{purchase.amount.toLocaleString()}円</span>
-            <span class="purchase-memo">{purchase.memo ?? ""}</span>
-            <span class="purchase-date">{formatDateTime(purchase.purchasedAt)}</span>
-          </li>
-        {/each}
-      </ul>
-    {/if}
-    {#if nextCursor}
-      <button onclick={() => loadPurchases(false)} disabled={historyLoading}>
-        {historyLoading ? "読み込み中..." : "もっと見る"}
-      </button>
-    {/if}
-  </section>
-</main>
+    </section>
+  </main>
+</div>
 
 <style>
-  .balance {
-    font-size: 2.5rem;
-    font-weight: bold;
+  .balance-card {
+    align-items: flex-start;
   }
-  .balance.negative {
-    color: #c0392b;
-  }
-  .purchase-list {
-    list-style: none;
-    padding: 0;
-  }
-  .purchase-list li {
+
+  .balance-figure {
     display: flex;
-    gap: 1rem;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #ddd;
+    align-items: baseline;
+    gap: 0.25rem;
   }
-  .purchase-amount {
-    font-weight: bold;
-    min-width: 6rem;
+
+  .unit {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-ink-muted);
   }
-  .purchase-memo {
-    flex: 1;
-    color: #555;
-  }
-  .purchase-date {
-    color: #888;
-    font-size: 0.85rem;
-  }
+
   .receipt-upload {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px dashed #ccc;
+    gap: var(--space-sm);
+    padding-bottom: var(--space-md);
+    border-bottom: 1px dashed var(--color-border);
   }
-  .analyze-hint {
-    color: #2e7d32;
-    font-size: 0.85rem;
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .purchase-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .purchase-list li {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.25rem var(--space-md);
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .purchase-list li:last-child {
+    border-bottom: none;
+  }
+
+  .purchase-amount {
+    font-family: var(--font-numeric);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    min-width: 5.5rem;
+  }
+
+  .purchase-memo {
+    flex: 1;
+    min-width: 8rem;
+    color: var(--color-ink-muted);
+    font-size: 0.9375rem;
+  }
+
+  .purchase-date {
+    color: var(--color-ink-faint);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (max-width: 480px) {
+    .purchase-list li {
+      flex-direction: column;
+      gap: 0.15rem;
+    }
   }
 </style>

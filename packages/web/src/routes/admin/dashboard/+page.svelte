@@ -139,143 +139,241 @@
   }
 </script>
 
-<main>
-  <header>
-    <h1>admin管理画面</h1>
-    <button onclick={handleLogout}>ログアウト</button>
+<div class="page">
+  <header class="page-header">
+    <div class="header-title">
+      <h1>admin管理画面</h1>
+      <span class="badge badge-warning">管理者</span>
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick={handleLogout}>ログアウト</button>
   </header>
 
-  <section>
-    <h2>現在残額</h2>
-    {#if balanceError}
-      <p role="alert">{balanceError}</p>
-    {:else if balance === null}
-      <p>読み込み中...</p>
-    {:else}
-      <p class="balance" class:negative={balance.amount < 0}>{balance.amount.toLocaleString()}円</p>
-    {/if}
-  </section>
-
-  <section>
-    <h2>残額の編集</h2>
-    <form onsubmit={handleBalanceSubmit}>
-      <div>
-        <label>
-          <input type="radio" bind:group={balanceMode} value="amount" />
-          上書き（この金額にする）
-        </label>
-        <label>
-          <input type="radio" bind:group={balanceMode} value="delta" />
-          増減（この金額を加算、マイナスで減算）
-        </label>
-      </div>
-      <div>
-        <label for="balanceInput">金額</label>
-        <input id="balanceInput" type="number" bind:value={balanceInput} required disabled={balanceSubmitting} />
-      </div>
-      {#if balanceSubmitError}
-        <p role="alert">{balanceSubmitError}</p>
+  <main class="page-body">
+    <section class="card balance-card">
+      <h2>現在残額</h2>
+      {#if balanceError}
+        <p class="alert alert-error" role="alert">{balanceError}</p>
+      {:else if balance === null}
+        <p class="text-muted">読み込み中…</p>
+      {:else}
+        <p class="balance-figure" class:is-negative={balance.amount < 0}>
+          {balance.amount.toLocaleString()}<span class="unit">円</span>
+        </p>
       {/if}
-      <button type="submit" disabled={balanceSubmitting}>{balanceSubmitting ? "更新中..." : "更新"}</button>
-    </form>
-  </section>
+    </section>
 
-  <section>
-    <h2>購入履歴の編集・削除</h2>
-    {#if historyError}
-      <p role="alert">{historyError}</p>
-    {/if}
-    {#if purchases.length === 0 && !historyLoading}
-      <p>購入履歴はありません</p>
-    {:else}
-      <ul class="purchase-list">
-        {#each purchases as purchase (purchase.id)}
-          <li>
-            {#if editingId === purchase.id}
-              <div class="edit-form">
-                <label>
-                  金額
-                  <input type="number" bind:value={editAmount} disabled={editSubmitting} />
-                </label>
-                <label>
-                  メモ
-                  <input type="text" bind:value={editMemo} disabled={editSubmitting} />
-                </label>
-                {#if editError}
-                  <p role="alert">{editError}</p>
-                {/if}
-                <button onclick={() => submitEdit(purchase.id)} disabled={editSubmitting}>
-                  {editSubmitting ? "保存中..." : "保存"}
-                </button>
-                <button onclick={cancelEdit} disabled={editSubmitting}>キャンセル</button>
-              </div>
-            {:else}
-              <span class="purchase-amount">{purchase.amount.toLocaleString()}円</span>
-              <span class="purchase-memo">{purchase.memo ?? ""}</span>
-              <span class="purchase-date">{formatDateTime(purchase.purchasedAt)}</span>
-              {#if purchase.editedByAdmin}
-                <span class="edited-badge">編集済み</span>
+    <section class="card">
+      <h2>残額の編集</h2>
+      <form onsubmit={handleBalanceSubmit}>
+        <div class="radio-group" role="radiogroup">
+          <label class="radio-option">
+            <input type="radio" bind:group={balanceMode} value="amount" />
+            上書き（この金額にする）
+          </label>
+          <label class="radio-option">
+            <input type="radio" bind:group={balanceMode} value="delta" />
+            増減（この金額を加算、マイナスで減算）
+          </label>
+        </div>
+        <div class="field">
+          <label for="balanceInput">金額</label>
+          <input id="balanceInput" type="number" inputmode="numeric" bind:value={balanceInput} required disabled={balanceSubmitting} />
+        </div>
+        {#if balanceSubmitError}
+          <p class="alert alert-error" role="alert">{balanceSubmitError}</p>
+        {/if}
+        <button class="btn btn-primary" type="submit" disabled={balanceSubmitting}>
+          {balanceSubmitting ? "更新中…" : "更新する"}
+        </button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>購入履歴の編集・削除</h2>
+      {#if historyError}
+        <p class="alert alert-error" role="alert">{historyError}</p>
+      {/if}
+      {#if purchases.length === 0 && !historyLoading}
+        <p class="text-muted">購入履歴はありません</p>
+      {:else}
+        <ul class="purchase-list">
+          {#each purchases as purchase (purchase.id)}
+            <li>
+              {#if editingId === purchase.id}
+                <div class="edit-form">
+                  <div class="field">
+                    <label for={`edit-amount-${purchase.id}`}>金額</label>
+                    <input id={`edit-amount-${purchase.id}`} type="number" inputmode="numeric" bind:value={editAmount} disabled={editSubmitting} />
+                  </div>
+                  <div class="field">
+                    <label for={`edit-memo-${purchase.id}`}>メモ</label>
+                    <input id={`edit-memo-${purchase.id}`} type="text" bind:value={editMemo} disabled={editSubmitting} />
+                  </div>
+                  {#if editError}
+                    <p class="alert alert-error" role="alert">{editError}</p>
+                  {/if}
+                  <div class="edit-actions">
+                    <button class="btn btn-primary btn-sm" onclick={() => submitEdit(purchase.id)} disabled={editSubmitting}>
+                      {editSubmitting ? "保存中…" : "保存"}
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick={cancelEdit} disabled={editSubmitting}>
+                      キャンセル
+                    </button>
+                  </div>
+                </div>
+              {:else}
+                <div class="purchase-row">
+                  <span class="purchase-amount">{purchase.amount.toLocaleString()}円</span>
+                  <span class="purchase-memo">{purchase.memo ?? ""}</span>
+                  <span class="purchase-date">{formatDateTime(purchase.purchasedAt)}</span>
+                  {#if purchase.editedByAdmin}
+                    <span class="badge badge-warning">編集済み</span>
+                  {/if}
+                </div>
+                <div class="purchase-actions">
+                  <button class="btn btn-secondary btn-sm" onclick={() => startEdit(purchase)}>編集</button>
+                  <button class="btn btn-danger btn-sm" onclick={() => handleDelete(purchase.id)} disabled={deletingId === purchase.id}>
+                    {deletingId === purchase.id ? "削除中…" : "削除"}
+                  </button>
+                </div>
               {/if}
-              <button onclick={() => startEdit(purchase)}>編集</button>
-              <button onclick={() => handleDelete(purchase.id)} disabled={deletingId === purchase.id}>
-                {deletingId === purchase.id ? "削除中..." : "削除"}
-              </button>
-            {/if}
-          </li>
-        {/each}
-      </ul>
-    {/if}
-    {#if nextCursor}
-      <button onclick={() => loadPurchases(false)} disabled={historyLoading}>
-        {historyLoading ? "読み込み中..." : "もっと見る"}
-      </button>
-    {/if}
-  </section>
-</main>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+      {#if nextCursor}
+        <button class="btn btn-secondary btn-sm" onclick={() => loadPurchases(false)} disabled={historyLoading}>
+          {historyLoading ? "読み込み中…" : "もっと見る"}
+        </button>
+      {/if}
+    </section>
+  </main>
+</div>
 
 <style>
-  .balance {
-    font-size: 2.5rem;
-    font-weight: bold;
+  .header-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
   }
-  .balance.negative {
-    color: #c0392b;
+
+  .balance-card {
+    align-items: flex-start;
   }
+
+  .balance-figure {
+    display: flex;
+    align-items: baseline;
+    gap: 0.25rem;
+  }
+
+  .unit {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-ink-muted);
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .radio-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: 0.9375rem;
+  }
+
+  .radio-option input {
+    accent-color: var(--color-accent);
+  }
+
   .purchase-list {
     list-style: none;
+    margin: 0;
     padding: 0;
+    display: flex;
+    flex-direction: column;
   }
+
   .purchase-list li {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #ddd;
+    justify-content: space-between;
     flex-wrap: wrap;
+    gap: var(--space-sm);
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--color-border);
   }
+
+  .purchase-list li:last-child {
+    border-bottom: none;
+  }
+
+  .purchase-row {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.25rem var(--space-md);
+  }
+
   .purchase-amount {
-    font-weight: bold;
-    min-width: 6rem;
+    font-family: var(--font-numeric);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    min-width: 5.5rem;
   }
+
   .purchase-memo {
-    flex: 1;
-    color: #555;
+    color: var(--color-ink-muted);
+    font-size: 0.9375rem;
   }
+
   .purchase-date {
-    color: #888;
-    font-size: 0.85rem;
+    color: var(--color-ink-faint);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
   }
-  .edited-badge {
-    color: #856404;
-    background: #fff3cd;
-    font-size: 0.75rem;
-    padding: 0.1rem 0.4rem;
-    border-radius: 0.25rem;
+
+  .purchase-actions {
+    display: flex;
+    gap: var(--space-xs);
+    flex-shrink: 0;
   }
+
   .edit-form {
     display: flex;
-    gap: 0.5rem;
-    align-items: center;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: var(--space-sm);
+    width: 100%;
+    padding: var(--space-sm) 0;
+  }
+
+  .edit-actions {
+    display: flex;
+    gap: var(--space-xs);
+  }
+
+  @media (max-width: 480px) {
+    .purchase-list li {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .purchase-actions {
+      width: 100%;
+    }
+
+    .purchase-actions .btn {
+      flex: 1;
+    }
   }
 </style>
