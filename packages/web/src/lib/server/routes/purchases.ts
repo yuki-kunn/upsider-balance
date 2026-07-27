@@ -38,6 +38,7 @@ purchasesRoute.post("/", requireRole("facility", "admin"), async (c) => {
 
   try {
     const amount = assertValidAmount(body.amount, { fieldName: "amount" });
+    const storeName = sanitizeText(body.storeName, { fieldName: "storeName", maxLength: 100 });
     const memo = sanitizeText(body.memo, { fieldName: "memo", maxLength: 200 });
     const purchasedAtMillis =
       body.purchasedAt !== undefined
@@ -70,6 +71,7 @@ purchasesRoute.post("/", requireRole("facility", "admin"), async (c) => {
 
       tx.set(purchaseRef, {
         amount,
+        storeName,
         memo,
         purchasedAt: Timestamp.fromMillis(purchasedAtMillis),
         receiptImagePath,
@@ -132,6 +134,7 @@ purchasesRoute.get("/", requireRole("facility", "admin"), async (c) => {
     return {
       id: doc.id,
       amount: data.amount,
+      storeName: data.storeName ?? null,
       memo: data.memo ?? null,
       purchasedAt: (data.purchasedAt as FirebaseFirestore.Timestamp).toMillis(),
       receiptImagePath: data.receiptImagePath ?? null,

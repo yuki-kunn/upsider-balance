@@ -20,6 +20,7 @@
 
   let editingId = $state<string | null>(null);
   let editAmount = $state("");
+  let editStoreName = $state("");
   let editMemo = $state("");
   let editSubmitting = $state(false);
   let editError = $state("");
@@ -87,6 +88,7 @@
   function startEdit(purchase: PurchaseListItem) {
     editingId = purchase.id;
     editAmount = String(purchase.amount);
+    editStoreName = purchase.storeName ?? "";
     editMemo = purchase.memo ?? "";
     editError = "";
   }
@@ -108,6 +110,7 @@
     try {
       await apiPatch(`/admin/purchases/${id}`, {
         amount: amountValue,
+        storeName: editStoreName.trim().length > 0 ? editStoreName.trim() : null,
         memo: editMemo.trim().length > 0 ? editMemo.trim() : null,
       });
       editingId = null;
@@ -206,6 +209,10 @@
                     <input id={`edit-amount-${purchase.id}`} type="number" inputmode="numeric" bind:value={editAmount} disabled={editSubmitting} />
                   </div>
                   <div class="field">
+                    <label for={`edit-store-${purchase.id}`}>購入店舗</label>
+                    <input id={`edit-store-${purchase.id}`} type="text" bind:value={editStoreName} disabled={editSubmitting} />
+                  </div>
+                  <div class="field">
                     <label for={`edit-memo-${purchase.id}`}>メモ</label>
                     <input id={`edit-memo-${purchase.id}`} type="text" bind:value={editMemo} disabled={editSubmitting} />
                   </div>
@@ -224,6 +231,9 @@
               {:else}
                 <div class="purchase-row">
                   <span class="purchase-amount">{purchase.amount.toLocaleString()}円</span>
+                  {#if purchase.storeName}
+                    <span class="purchase-store">{purchase.storeName}</span>
+                  {/if}
                   <span class="purchase-memo">{purchase.memo ?? ""}</span>
                   <span class="purchase-date">{formatDateTime(purchase.purchasedAt)}</span>
                   {#if purchase.editedByAdmin}
@@ -330,6 +340,12 @@
     font-variant-numeric: tabular-nums;
     font-weight: 700;
     min-width: 5.5rem;
+  }
+
+  .purchase-store {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-accent);
   }
 
   .purchase-memo {

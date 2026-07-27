@@ -10,6 +10,7 @@
   let balanceError = $state("");
 
   let amount = $state("");
+  let storeName = $state("");
   let memo = $state("");
   let submitting = $state(false);
   let submitError = $state("");
@@ -74,11 +75,13 @@
     try {
       await apiPost("/purchases", {
         amount: amountValue,
+        storeName: storeName.trim().length > 0 ? storeName.trim() : null,
         memo: memo.trim().length > 0 ? memo.trim() : null,
         receiptImagePath,
         receiptOcrRaw: analyzeResult?.raw ?? null,
       });
       amount = "";
+      storeName = "";
       memo = "";
       receiptFile = null;
       receiptImagePath = null;
@@ -114,9 +117,11 @@
       if (result.amountCandidates.length > 0) {
         amount = String(result.amountCandidates[0]);
       }
-      const memoParts = [...result.storeNameCandidates, ...result.itemCandidates];
-      if (memoParts.length > 0) {
-        memo = memoParts.join(" ");
+      if (result.storeNameCandidates.length > 0) {
+        storeName = result.storeNameCandidates[0];
+      }
+      if (result.itemCandidates.length > 0) {
+        memo = result.itemCandidates.join(" ");
       }
     } catch (e) {
       analyzeError = e instanceof Error ? e.message : "レシート画像の解析に失敗しました";
@@ -191,6 +196,10 @@
           <input id="amount" type="number" inputmode="numeric" bind:value={amount} required disabled={submitting} />
         </div>
         <div class="field">
+          <label for="storeName">購入店舗（任意）</label>
+          <input id="storeName" type="text" bind:value={storeName} disabled={submitting} />
+        </div>
+        <div class="field">
           <label for="memo">品目メモ（任意）</label>
           <input id="memo" type="text" bind:value={memo} disabled={submitting} />
         </div>
@@ -215,6 +224,9 @@
           {#each purchases as purchase (purchase.id)}
             <li>
               <span class="purchase-amount">{purchase.amount.toLocaleString()}円</span>
+              {#if purchase.storeName}
+                <span class="purchase-store">{purchase.storeName}</span>
+              {/if}
               <span class="purchase-memo">{purchase.memo ?? ""}</span>
               <span class="purchase-date">{formatDateTime(purchase.purchasedAt)}</span>
             </li>
@@ -287,6 +299,12 @@
     font-variant-numeric: tabular-nums;
     font-weight: 700;
     min-width: 5.5rem;
+  }
+
+  .purchase-store {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-accent);
   }
 
   .purchase-memo {
