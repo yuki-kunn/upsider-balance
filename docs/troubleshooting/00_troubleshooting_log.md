@@ -128,3 +128,10 @@
 - 原因: レート制限チェックの実装時、「Geminiを呼ぶ直前でカウントする」という意図に対し、実装順序が画像バリデーションより先になっていた。
 - 解決策: `assertGeminiRateLimit`の呼び出しを画像の存在確認・MIME・サイズチェックの後、Gemini呼び出し直前に移動。不正なリクエストを3回連打してもカウンタドキュメントが作成されないこと、正常な解析では正しくcount=1になることをE2Eで確認済み。
 - 関連ファイル: `packages/web/src/lib/server/routes/receipts.ts`
+
+## 2026-07-25 同一ブラウザで施設とadminを両方ログインすると「施設情報を取得できませんでした」エラー
+- 症状: ユーザー報告。同一端末・同一ブラウザで施設アカウントにログインした状態のまま、別タブ等でadminアカウントにもログインすると、施設側の画面（レシートアップロード）で「施設情報を取得できませんでした」という分かりにくいエラーが出る。
+- 原因: Firebase Authenticationはブラウザの1インスタンスにつき1ユーザーしか保持できない。後からadminでログインすると`auth.currentUser`がadminユーザーに黙って上書きされ、施設タブ側は古いUIのまま動作し続ける。admin用Custom Claimsには`facilityId`が含まれない設計のため、`receipt-upload.ts`の`tokenResult.claims.facilityId`取得が失敗しエラーになっていた。
+- 解決策: `packages/web/src/lib/auth.ts`の`loginAsFacility`/`loginAsAdmin`に、ログイン前に既存セッションのロールをチェックし、要求するロールと異なれば明示的に`signOut`してからログインする処理（`ensureNoOtherRoleSignedIn`）を追加。これにより「後からログインした方が有効なセッションになる」という一貫した挙動になる。古いタブ側は既存のルートガード（+layout.svelte）により自動的にログイン画面へリダイレクトされる。
+- 補足: Firebase Authの制約上、同一ブラウザで施設・adminを完全に同時並行で使うことはできない。運用上は別ブラウザ・シークレットウィンドウでの使い分けを推奨する。
+- 関連ファイル: `packages/web/src/lib/auth.ts`
