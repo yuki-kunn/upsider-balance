@@ -126,6 +126,9 @@ adminRoute.patch("/purchases/:id", async (c) => {
         updatedAt: FieldValue.serverTimestamp(),
         editedByAdmin: true,
       };
+      if (body.storeName !== undefined) {
+        purchaseUpdate.storeName = sanitizeText(body.storeName, { fieldName: "storeName", maxLength: 100 });
+      }
       if (body.memo !== undefined) {
         purchaseUpdate.memo = sanitizeText(body.memo, { fieldName: "memo", maxLength: 200 });
       }

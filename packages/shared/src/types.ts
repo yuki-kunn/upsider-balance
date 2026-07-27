@@ -30,6 +30,8 @@ export interface Balance {
 export interface Purchase {
   id: string;
   amount: number;
+  /** 購入店舗名（任意）。品目メモとは別管理する */
+  storeName: string | null;
   memo: string | null;
   purchasedAt: TimestampMillis;
   receiptImagePath: string | null;
@@ -87,6 +89,7 @@ export function parseCustomClaims(value: { role?: unknown; facilityId?: unknown 
 /** POST /api/purchases */
 export interface CreatePurchaseRequest {
   amount: number;
+  storeName?: string | null;
   memo?: string | null;
   purchasedAt?: TimestampMillis;
   receiptImagePath?: string | null;
@@ -96,6 +99,7 @@ export interface CreatePurchaseRequest {
 /** PATCH /api/admin/purchases/:id */
 export interface UpdatePurchaseRequest {
   amount?: number;
+  storeName?: string | null;
   memo?: string | null;
   purchasedAt?: TimestampMillis;
 }

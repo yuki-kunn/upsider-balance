@@ -106,6 +106,7 @@ facilities/{facilityId}/balance/current   単一ドキュメントで残額を�
 
 facilities/{facilityId}/purchases/{purchaseId}
   - amount: number                     購入金額（円、整数）
+  - storeName: string | null            購入店舗名（任意、2026-07-25追加：品目メモとは別管理）
   - memo: string | null                 購入品目メモ（任意）
   - purchasedAt: Timestamp               購入日時（デフォルト現在時刻、入力可能）
   - receiptImagePath: string | null       Storageパス（レシート解析を使った場合）
