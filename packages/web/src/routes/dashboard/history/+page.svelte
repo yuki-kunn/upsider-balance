@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import type { PurchaseListItem } from "@upsider-balance/shared";
   import { apiGet } from "$lib/api-client";
-  import { formatDateTime, formatMonthLabel } from "$lib/date-format";
+  import { formatDate, formatMonthLabel } from "$lib/date-format";
 
   const now = new Date();
   let year = $state(now.getFullYear());
@@ -85,7 +85,7 @@
                   <span class="purchase-store">{purchase.storeName}</span>
                 {/if}
                 <span class="purchase-memo">{purchase.memo ?? ""}</span>
-                <span class="purchase-date">{formatDateTime(purchase.purchasedAt)}</span>
+                <span class="purchase-date">{formatDate(purchase.purchasedAt)}</span>
               </li>
             {/each}
           </ul>

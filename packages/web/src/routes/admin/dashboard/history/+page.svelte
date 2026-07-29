@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import type { PurchaseListItem } from "@upsider-balance/shared";
   import { apiGet, apiPatch, apiDelete } from "$lib/api-client";
-  import { millisToDatetimeLocal, datetimeLocalToMillis, formatDateTime, formatMonthLabel } from "$lib/date-format";
+  import { millisToDateInput, dateInputToMillis, formatDate, formatMonthLabel } from "$lib/date-format";
 
   const now = new Date();
   let year = $state(now.getFullYear());
@@ -17,6 +17,8 @@
   let editStoreName = $state("");
   let editMemo = $state("");
   let editPurchasedAt = $state("");
+  /** 編集フォームは日付のみ変更可能。保存時は元のpurchasedAtの時刻部分をそのまま保持する */
+  let editPurchasedAtOriginalMillis = $state(0);
   let editSubmitting = $state(false);
   let editError = $state("");
 
@@ -62,7 +64,8 @@
     editAmount = String(purchase.amount);
     editStoreName = purchase.storeName ?? "";
     editMemo = purchase.memo ?? "";
-    editPurchasedAt = millisToDatetimeLocal(purchase.purchasedAt);
+    editPurchasedAt = millisToDateInput(purchase.purchasedAt);
+    editPurchasedAtOriginalMillis = purchase.purchasedAt;
     editError = "";
   }
 
@@ -78,9 +81,9 @@
       editError = "金額は整数で入力してください";
       return;
     }
-    const purchasedAtMillis = datetimeLocalToMillis(editPurchasedAt);
+    const purchasedAtMillis = dateInputToMillis(editPurchasedAt, editPurchasedAtOriginalMillis);
     if (purchasedAtMillis === null) {
-      editError = "購入日時を正しく入力してください";
+      editError = "購入日を正しく入力してください";
       return;
     }
 
@@ -174,10 +177,10 @@
                       <input id={`edit-memo-${purchase.id}`} type="text" bind:value={editMemo} disabled={editSubmitting} />
                     </div>
                     <div class="field">
-                      <label for={`edit-purchasedAt-${purchase.id}`}>購入日時</label>
+                      <label for={`edit-purchasedAt-${purchase.id}`}>購入日</label>
                       <input
                         id={`edit-purchasedAt-${purchase.id}`}
-                        type="datetime-local"
+                        type="date"
                         bind:value={editPurchasedAt}
                         disabled={editSubmitting}
                       />
@@ -201,7 +204,7 @@
                       <span class="purchase-store">{purchase.storeName}</span>
                     {/if}
                     <span class="purchase-memo">{purchase.memo ?? ""}</span>
-                    <span class="purchase-date">{formatDateTime(purchase.purchasedAt)}</span>
+                    <span class="purchase-date">{formatDate(purchase.purchasedAt)}</span>
                     {#if purchase.editedByAdmin}
                       <span class="badge badge-warning">編集済み</span>
                     {/if}
