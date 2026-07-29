@@ -5,7 +5,7 @@
   import { logout } from "$lib/auth";
   import { goto } from "$app/navigation";
   import { uploadReceiptImage } from "$lib/receipt-upload";
-  import { millisToDatetimeLocal, datetimeLocalToMillis, formatDateTime } from "$lib/date-format";
+  import { millisToDateInput, dateInputToMillis, formatDate } from "$lib/date-format";
 
   const HISTORY_PREVIEW_COUNT = 3;
 
@@ -15,7 +15,7 @@
   let amount = $state("");
   let storeName = $state("");
   let memo = $state("");
-  let purchasedAt = $state(millisToDatetimeLocal(Date.now()));
+  let purchasedAt = $state(millisToDateInput(Date.now()));
   let submitting = $state(false);
   let submitError = $state("");
 
@@ -74,9 +74,9 @@
       submitError = "金額は整数で入力してください";
       return;
     }
-    const purchasedAtMillis = datetimeLocalToMillis(purchasedAt);
+    const purchasedAtMillis = dateInputToMillis(purchasedAt, Date.now());
     if (purchasedAtMillis === null) {
-      submitError = "購入日時を正しく入力してください";
+      submitError = "購入日を正しく入力してください";
       return;
     }
 
@@ -93,7 +93,7 @@
       amount = "";
       storeName = "";
       memo = "";
-      purchasedAt = millisToDatetimeLocal(Date.now());
+      purchasedAt = millisToDateInput(Date.now());
       receiptFile = null;
       receiptImagePath = null;
       analyzeResult = null;
@@ -212,8 +212,8 @@
           <input id="memo" type="text" bind:value={memo} disabled={submitting} />
         </div>
         <div class="field">
-          <label for="purchasedAt">購入日時</label>
-          <input id="purchasedAt" type="datetime-local" bind:value={purchasedAt} required disabled={submitting} />
+          <label for="purchasedAt">購入日</label>
+          <input id="purchasedAt" type="date" bind:value={purchasedAt} required disabled={submitting} />
         </div>
         {#if submitError}
           <p class="alert alert-error" role="alert">{submitError}</p>
@@ -243,7 +243,7 @@
                 <span class="purchase-store">{purchase.storeName}</span>
               {/if}
               <span class="purchase-memo">{purchase.memo ?? ""}</span>
-              <span class="purchase-date">{formatDateTime(purchase.purchasedAt)}</span>
+              <span class="purchase-date">{formatDate(purchase.purchasedAt)}</span>
             </li>
           {/each}
         </ul>
