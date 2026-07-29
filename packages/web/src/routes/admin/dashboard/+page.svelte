@@ -4,6 +4,9 @@
   import { apiGet, apiPatch, apiDelete } from "$lib/api-client";
   import { logout } from "$lib/auth";
   import { goto } from "$app/navigation";
+  import { millisToDatetimeLocal, datetimeLocalToMillis, formatDateTime } from "$lib/date-format";
+
+  const HISTORY_PREVIEW_COUNT = 3;
 
   let balance = $state<Balance | null>(null);
   let balanceError = $state("");
@@ -14,7 +17,6 @@
   let balanceSubmitError = $state("");
 
   let purchases = $state<PurchaseListItem[]>([]);
-  let nextCursor = $state<string | null>(null);
   let historyLoading = $state(false);
   let historyError = $state("");
 
@@ -22,6 +24,7 @@
   let editAmount = $state("");
   let editStoreName = $state("");
   let editMemo = $state("");
+  let editPurchasedAt = $state("");
   let editSubmitting = $state(false);
   let editError = $state("");
 
@@ -37,14 +40,15 @@
     }
   }
 
-  async function loadPurchases(reset = true) {
+  /** adminダッシュボードでも直近件のみプレビュー表示する。全履歴は月別履歴ページで確認する */
+  async function loadPurchases() {
     historyLoading = true;
     historyError = "";
     try {
-      const query = !reset && nextCursor ? `?cursor=${encodeURIComponent(nextCursor)}` : "";
-      const res = await apiGet<{ purchases: PurchaseListItem[]; nextCursor: string | null }>(`/purchases${query}`);
-      purchases = reset ? res.purchases : [...purchases, ...res.purchases];
-      nextCursor = res.nextCursor;
+      const res = await apiGet<{ purchases: PurchaseListItem[]; nextCursor: string | null }>(
+        `/purchases?limit=${HISTORY_PREVIEW_COUNT}`,
+      );
+      purchases = res.purchases;
     } catch {
       historyError = "購入履歴の取得に失敗しました";
     } finally {
@@ -90,6 +94,7 @@
     editAmount = String(purchase.amount);
     editStoreName = purchase.storeName ?? "";
     editMemo = purchase.memo ?? "";
+    editPurchasedAt = millisToDatetimeLocal(purchase.purchasedAt);
     editError = "";
   }
 
@@ -105,6 +110,11 @@
       editError = "金額は整数で入力してください";
       return;
     }
+    const purchasedAtMillis = datetimeLocalToMillis(editPurchasedAt);
+    if (purchasedAtMillis === null) {
+      editError = "購入日時を正しく入力してください";
+      return;
+    }
 
     editSubmitting = true;
     try {
@@ -112,6 +122,7 @@
         amount: amountValue,
         storeName: editStoreName.trim().length > 0 ? editStoreName.trim() : null,
         memo: editMemo.trim().length > 0 ? editMemo.trim() : null,
+        purchasedAt: purchasedAtMillis,
       });
       editingId = null;
       await Promise.all([loadBalance(), loadPurchases()]);
@@ -137,9 +148,6 @@
     }
   }
 
-  function formatDateTime(millis: number): string {
-    return new Date(millis).toLocaleString("ja-JP");
-  }
 </script>
 
 <div class="page">
@@ -192,7 +200,10 @@
     </section>
 
     <section class="card">
-      <h2>購入履歴の編集・削除</h2>
+      <div class="section-header">
+        <h2>購入履歴の編集・削除（直近{HISTORY_PREVIEW_COUNT}件）</h2>
+        <a class="link" href="/admin/dashboard/history">月別に見る →</a>
+      </div>
       {#if historyError}
         <p class="alert alert-error" role="alert">{historyError}</p>
       {/if}
@@ -215,6 +226,15 @@
                   <div class="field">
                     <label for={`edit-memo-${purchase.id}`}>メモ</label>
                     <input id={`edit-memo-${purchase.id}`} type="text" bind:value={editMemo} disabled={editSubmitting} />
+                  </div>
+                  <div class="field">
+                    <label for={`edit-purchasedAt-${purchase.id}`}>購入日時</label>
+                    <input
+                      id={`edit-purchasedAt-${purchase.id}`}
+                      type="datetime-local"
+                      bind:value={editPurchasedAt}
+                      disabled={editSubmitting}
+                    />
                   </div>
                   {#if editError}
                     <p class="alert alert-error" role="alert">{editError}</p>
@@ -251,11 +271,6 @@
           {/each}
         </ul>
       {/if}
-      {#if nextCursor}
-        <button class="btn btn-secondary btn-sm" onclick={() => loadPurchases(false)} disabled={historyLoading}>
-          {historyLoading ? "読み込み中…" : "もっと見る"}
-        </button>
-      {/if}
     </section>
   </main>
 </div>
@@ -281,6 +296,25 @@
     font-size: 1.25rem;
     font-weight: 600;
     color: var(--color-ink-muted);
+  }
+
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-sm);
+  }
+
+  .link {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-accent);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .link:hover {
+    text-decoration: underline;
   }
 
   form {

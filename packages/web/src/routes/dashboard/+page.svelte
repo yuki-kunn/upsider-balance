@@ -5,6 +5,9 @@
   import { logout } from "$lib/auth";
   import { goto } from "$app/navigation";
   import { uploadReceiptImage } from "$lib/receipt-upload";
+  import { millisToDatetimeLocal, datetimeLocalToMillis, formatDateTime } from "$lib/date-format";
+
+  const HISTORY_PREVIEW_COUNT = 3;
 
   let balance = $state<Balance | null>(null);
   let balanceError = $state("");
@@ -12,6 +15,7 @@
   let amount = $state("");
   let storeName = $state("");
   let memo = $state("");
+  let purchasedAt = $state(millisToDatetimeLocal(Date.now()));
   let submitting = $state(false);
   let submitError = $state("");
 
@@ -22,7 +26,6 @@
   let analyzeResult = $state<AnalyzeReceiptResponse | null>(null);
 
   let purchases = $state<PurchaseListItem[]>([]);
-  let nextCursor = $state<string | null>(null);
   let historyLoading = $state(false);
   let historyError = $state("");
 
@@ -36,14 +39,15 @@
     }
   }
 
-  async function loadPurchases(reset = true) {
+  /** ダッシュボードでは直近件のみプレビュー表示する。全履歴は月別履歴ページで確認する */
+  async function loadPurchases() {
     historyLoading = true;
     historyError = "";
     try {
-      const query = !reset && nextCursor ? `?cursor=${encodeURIComponent(nextCursor)}` : "";
-      const res = await apiGet<{ purchases: PurchaseListItem[]; nextCursor: string | null }>(`/purchases${query}`);
-      purchases = reset ? res.purchases : [...purchases, ...res.purchases];
-      nextCursor = res.nextCursor;
+      const res = await apiGet<{ purchases: PurchaseListItem[]; nextCursor: string | null }>(
+        `/purchases?limit=${HISTORY_PREVIEW_COUNT}`,
+      );
+      purchases = res.purchases;
     } catch {
       historyError = "購入履歴の取得に失敗しました";
     } finally {
@@ -70,6 +74,11 @@
       submitError = "金額は整数で入力してください";
       return;
     }
+    const purchasedAtMillis = datetimeLocalToMillis(purchasedAt);
+    if (purchasedAtMillis === null) {
+      submitError = "購入日時を正しく入力してください";
+      return;
+    }
 
     submitting = true;
     try {
@@ -77,12 +86,14 @@
         amount: amountValue,
         storeName: storeName.trim().length > 0 ? storeName.trim() : null,
         memo: memo.trim().length > 0 ? memo.trim() : null,
+        purchasedAt: purchasedAtMillis,
         receiptImagePath,
         receiptOcrRaw: analyzeResult?.raw ?? null,
       });
       amount = "";
       storeName = "";
       memo = "";
+      purchasedAt = millisToDatetimeLocal(Date.now());
       receiptFile = null;
       receiptImagePath = null;
       analyzeResult = null;
@@ -130,9 +141,6 @@
     }
   }
 
-  function formatDateTime(millis: number): string {
-    return new Date(millis).toLocaleString("ja-JP");
-  }
 </script>
 
 <div class="page">
@@ -203,6 +211,10 @@
           <label for="memo">品目メモ（任意）</label>
           <input id="memo" type="text" bind:value={memo} disabled={submitting} />
         </div>
+        <div class="field">
+          <label for="purchasedAt">購入日時</label>
+          <input id="purchasedAt" type="datetime-local" bind:value={purchasedAt} required disabled={submitting} />
+        </div>
         {#if submitError}
           <p class="alert alert-error" role="alert">{submitError}</p>
         {/if}
@@ -213,7 +225,10 @@
     </section>
 
     <section class="card">
-      <h2>購入履歴</h2>
+      <div class="section-header">
+        <h2>購入履歴（直近{HISTORY_PREVIEW_COUNT}件）</h2>
+        <a class="link" href="/dashboard/history">月別に見る →</a>
+      </div>
       {#if historyError}
         <p class="alert alert-error" role="alert">{historyError}</p>
       {/if}
@@ -232,11 +247,6 @@
             </li>
           {/each}
         </ul>
-      {/if}
-      {#if nextCursor}
-        <button class="btn btn-secondary btn-sm" onclick={() => loadPurchases(false)} disabled={historyLoading}>
-          {historyLoading ? "読み込み中…" : "もっと見る"}
-        </button>
       {/if}
     </section>
   </main>
@@ -271,6 +281,25 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-md);
+  }
+
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-sm);
+  }
+
+  .link {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-accent);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .link:hover {
+    text-decoration: underline;
   }
 
   .purchase-list {

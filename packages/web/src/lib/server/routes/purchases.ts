@@ -100,7 +100,10 @@ purchasesRoute.post("/", requireRole("facility", "admin"), async (c) => {
 /**
  * GET /purchases
  * 施設 or admin。purchasedAt desc でページネーション。
- * クエリパラメータ: limit (default 20, max 100), cursor (前回レスポンスの nextCursor)
+ * クエリパラメータ:
+ *   - limit (default 20, max 100), cursor (前回レスポンスのnextCursor)
+ *   - year, month (両方指定した場合、その月のpurchasedAtを持つ購入のみに絞り込む。
+ *     1〜12月、その月内は全件返す＝limit/cursorは無視する)
  */
 purchasesRoute.get("/", requireRole("facility", "admin"), async (c) => {
   const db = getDb();
@@ -109,14 +112,33 @@ purchasesRoute.get("/", requireRole("facility", "admin"), async (c) => {
     return c.json({ error: "not_found", message: "facility not found" }, 404);
   }
 
+  const yearParam = c.req.query("year");
+  const monthParam = c.req.query("month");
+
+  let query = db.collection(`facilities/${facilityId}/purchases`).orderBy("purchasedAt", "desc");
+
+  if (yearParam !== undefined || monthParam !== undefined) {
+    const year = Number(yearParam);
+    const month = Number(monthParam);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+      return c.json({ error: "bad_request", message: "year and month must be valid integers (month: 1-12)" }, 400);
+    }
+    const rangeStart = new Date(year, month - 1, 1);
+    const rangeEnd = new Date(year, month, 1);
+    query = query
+      .where("purchasedAt", ">=", Timestamp.fromDate(rangeStart))
+      .where("purchasedAt", "<", Timestamp.fromDate(rangeEnd));
+
+    const snap = await query.get();
+    const purchases = mapPurchaseDocs(snap.docs);
+    return c.json({ purchases, nextCursor: null });
+  }
+
   const limitParam = Number(c.req.query("limit") ?? "20");
   const limit = Number.isFinite(limitParam) ? Math.min(Math.max(Math.trunc(limitParam), 1), 100) : 20;
   const cursor = c.req.query("cursor");
 
-  let query = db
-    .collection(`facilities/${facilityId}/purchases`)
-    .orderBy("purchasedAt", "desc")
-    .limit(limit);
+  query = query.limit(limit);
 
   if (cursor) {
     const cursorMillis = Number(cursor);
@@ -127,9 +149,24 @@ purchasesRoute.get("/", requireRole("facility", "admin"), async (c) => {
   }
 
   const snap = await query.get();
-  // 一覧表示にはreceiptOcrRaw（Gemini解析の生データ）は不要なため含めない。
-  // 履歴が増えるほど転送量が無駄に増えるのを防ぐ（tech-debt issue #10）。
-  const purchases: PurchaseListItem[] = snap.docs.map((doc) => {
+  const purchases = mapPurchaseDocs(snap.docs);
+
+  const last = snap.docs.at(-1);
+  const nextCursor =
+    last && snap.docs.length === limit ? String((last.data().purchasedAt as FirebaseFirestore.Timestamp).toMillis()) : null;
+
+  return c.json({ purchases, nextCursor });
+});
+
+/**
+ * Firestoreドキュメントを一覧APIレスポンス用の形状に変換する。
+ * receiptOcrRaw（Gemini解析の生データ）は一覧表示に不要なため含めない
+ * （履歴が増えるほど転送量が無駄に増えるのを防ぐ、tech-debt issue #10）。
+ */
+function mapPurchaseDocs(
+  docs: FirebaseFirestore.QueryDocumentSnapshot[],
+): PurchaseListItem[] {
+  return docs.map((doc) => {
     const data = doc.data();
     return {
       id: doc.id,
@@ -144,10 +181,4 @@ purchasesRoute.get("/", requireRole("facility", "admin"), async (c) => {
       facilityId: data.facilityId,
     };
   });
-
-  const last = snap.docs.at(-1);
-  const nextCursor =
-    last && snap.docs.length === limit ? String((last.data().purchasedAt as FirebaseFirestore.Timestamp).toMillis()) : null;
-
-  return c.json({ purchases, nextCursor });
-});
+}
