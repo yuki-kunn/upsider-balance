@@ -117,6 +117,12 @@
 - 解決策: `models.generateContent`の`model`パラメータを`gemini-3.5-flash`に変更した。テキスト生成・画像入力（inlineData）・`responseSchema`による構造化JSON出力のいずれも問題なく動作することを確認済み。
 - 関連ファイル: `packages/web/src/lib/server/lib/gemini.ts`
 
+## 2026-07-29 `vercel build --prod`が`EACCES: permission denied, open '/home/_tmp_...'`で失敗する
+- 症状: `vercel pull` → `vercel build --prod`の手順で本番デプロイしようとすると、`installCommand`（`cd ../.. && pnpm install --frozen-lockfile`）の実行中に`/home/_tmp_<pid>_<hash>`という、リポジトリの外・`/home`直下（root所有でyukiユーザーには書き込み権限がない）へのファイル書き込みで`EACCES`が発生しビルドが失敗した。`--cwd`指定や`TMPDIR`環境変数の設定では解消しなかった。またそもそも`pnpm`コマンド自体がこの環境のPATHに存在せず（`corepack enable`はグローバルインストール権限がなく失敗）、`corepack enable --install-directory ~/.local/bin`でユーザーローカルにシムを作る必要があった。
+- 原因: 未特定。Vercel CLI（`@vercel/static-build`ビルダー）が内部で使う一時ファイル生成処理が、このマシンのサンドボックス環境下でcwd起点の相対パス解決を誤り、`/home/yuki/upsider-balance`ではなく`/home`を基準にしてしまっていると推測される。ローカル環境固有の問題で、Vercelのビルドサーバー側では発生しない可能性がある。
+- 解決策: `vercel build`を使わず、pnpmワークスペースのビルドを手動で行った（`pnpm --filter @upsider-balance/shared build && pnpm --filter web build`）。`@sveltejs/adapter-vercel`はこの`pnpm build`実行だけで`packages/web/.vercel/output`（Build Output API形式）を正しく生成してくれるため、`packages/web`ディレクトリで`vercel deploy --prebuilt --prod`を実行すればそのままVercel本番へデプロイできた。以降、ローカル環境から本番デプロイする際はこの手順（`vercel build`をスキップし手動`pnpm build`→`vercel deploy --prebuilt --prod`）を使う。
+- 関連ファイル: なし（デプロイ手順のみ、コードファイルへの変更なし）
+
 ## 2026-07-24 Firebase Admin SDKにstorageBucketを渡していなかったためレシート解析が失敗
 - 症状: レシート画像アップロード後、`POST /api/receipts/analyze`が500エラー。サーバーログに`Bucket name not specified or invalid. Specify a valid bucket name via the storageBucket option when initializing the app...`
 - 原因: `lib/firestore.ts`の`initializeApp()`で`credential`と`projectId`のみを渡しており、`storageBucket`オプションが未指定だった。サービスアカウント鍵JSON自体にはバケット名の情報が含まれないため、`getAdminStorage().bucket()`（デフォルトバケット取得）が失敗していた。
