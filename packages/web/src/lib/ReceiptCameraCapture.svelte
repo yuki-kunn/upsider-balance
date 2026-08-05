@@ -352,9 +352,17 @@
     };
   }
 
+  // OpenCV.js(約8MBのWASM)の読み込みはモーダルを開いた瞬間ではなく、
+  // 実際にカメラを起動した後に遅延させる。低速回線・低メモリ環境で
+  // モーダルを開いた直後の操作性（ボタンのタップ等）に影響しないようにするため。
+  let openCvCleanup: (() => void) | null = null;
   $effect(() => {
-    const cleanup = loadOpenCv();
-    return cleanup;
+    if (!started) return;
+    openCvCleanup = loadOpenCv();
+    return () => {
+      openCvCleanup?.();
+      openCvCleanup = null;
+    };
   });
 
   $effect(() => {
@@ -383,6 +391,17 @@
     return () => {
       window.removeEventListener("resize", compute);
       window.removeEventListener("orientationchange", compute);
+    };
+  });
+
+  // iOS Safariでは固定要素（position: fixed）の上に重なるモーダルを開いている間も
+  // 背後のページがスクロールしてしまい、タップ位置がずれてボタンが反応しないように
+  // 見えることがある。モーダル表示中は背景のスクロールを止める。
+  $effect(() => {
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = original;
     };
   });
 
