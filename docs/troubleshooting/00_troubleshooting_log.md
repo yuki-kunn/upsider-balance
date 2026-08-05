@@ -123,6 +123,12 @@
 - 解決策: `vercel build`を使わず、pnpmワークスペースのビルドを手動で行った（`pnpm --filter @upsider-balance/shared build && pnpm --filter web build`）。`@sveltejs/adapter-vercel`はこの`pnpm build`実行だけで`packages/web/.vercel/output`（Build Output API形式）を正しく生成してくれるため、`packages/web`ディレクトリで`vercel deploy --prebuilt --prod`を実行すればそのままVercel本番へデプロイできた。以降、ローカル環境から本番デプロイする際はこの手順（`vercel build`をスキップし手動`pnpm build`→`vercel deploy --prebuilt --prod`）を使う。
 - 関連ファイル: なし（デプロイ手順のみ、コードファイルへの変更なし）
 
+## 2026-08-05 headless Chromium + OpenCV.js（WASM）のE2E検証がこの開発機のリソースでは不安定
+- 症状: `ReceiptCameraCapture.svelte`（カメラ自動検知・撮影機能）をPlaywright（`--use-fake-device-for-media-stream`使用）でE2E検証したところ、フェイクカメラ映像の`videoWidth`確定・シャッター操作・撮影後のOpenCV自動検知（`capture()`内の`detectInitialQuad`）のいずれかのタイミングで、ページ全体が予告なく閉じる（`page.on("close")`は発火するが`page.on("crash")`は発火しない）現象が断続的に発生した。同一のスクリプトでも成功する場合と失敗する場合があった。
+- 原因: 未特定だが、この開発機がCPU 4コア（Core i5-7300U）・メモリ3.8GBというノートPC級のリソースしかなく、headless ChromiumでのWASM実行（OpenCV.js、約8MB）+ フェイクカメラの動画デコード + 複数のGaussianBlur/morphologyEx等の重い画像処理が同時に走ることで、レンダラープロセスがクラッシュ（または強制終了）していると推測される。実機・通常のデスクトップブラウザでは発生しない可能性が高い。
+- 対応: このリソース制約下でのE2E完全自動化は諦め、以下の部分検証の組み合わせで品質を担保した：型チェック(`svelte-check`)・ビルド成功、モーダルの開閉・カメラ起動・手動シャッター・四隅調整UI表示・切り抜き確定→フォームへのファイル受け渡しまでの一連のフローが少なくとも1回は完全に成功することをPlaywrightで確認、コンソールエラーが出ないことを確認。以降、OpenCV.js等の重いWASM処理を含むUIをこの環境でE2E検証する際は、複数回の再試行を許容し、単発の失敗だけで実装のバグと即断しない。
+- 関連ファイル: `packages/web/src/lib/ReceiptCameraCapture.svelte`
+
 ## 2026-07-24 Firebase Admin SDKにstorageBucketを渡していなかったためレシート解析が失敗
 - 症状: レシート画像アップロード後、`POST /api/receipts/analyze`が500エラー。サーバーログに`Bucket name not specified or invalid. Specify a valid bucket name via the storageBucket option when initializing the app...`
 - 原因: `lib/firestore.ts`の`initializeApp()`で`credential`と`projectId`のみを渡しており、`storageBucket`オプションが未指定だった。サービスアカウント鍵JSON自体にはバケット名の情報が含まれないため、`getAdminStorage().bucket()`（デフォルトバケット取得）が失敗していた。
