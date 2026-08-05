@@ -21,6 +21,7 @@
   let submitError = $state("");
 
   let receiptFile = $state<File | null>(null);
+  let receiptFileInputRef = $state<HTMLInputElement | null>(null);
   let receiptImagePath = $state<string | null>(null);
   let analyzing = $state(false);
   let analyzeError = $state("");
@@ -98,6 +99,7 @@
       memo = "";
       purchasedAt = millisToDateInput(Date.now());
       receiptFile = null;
+      if (receiptFileInputRef) receiptFileInputRef.value = "";
       receiptImagePath = null;
       analyzeResult = null;
       await Promise.all([loadBalance(), loadPurchases()]);
@@ -191,12 +193,18 @@
         <div class="field">
           <label for="receiptFile">レシート写真（任意・AIが金額と品目を読み取ります）</label>
           <input
+            bind:this={receiptFileInputRef}
             id="receiptFile"
             type="file"
             accept="image/jpeg,image/png,image/webp,image/heic"
             onchange={handleReceiptFileChange}
             disabled={analyzing}
           />
+          {#if receiptFile}
+            <!-- 切り抜き後のFileはinput要素のvalueに反映できない（ブラウザの仕様）ため、
+                 実際に選択されているファイルを別途テキストで表示する -->
+            <p class="selected-file">選択中の画像: {receiptFile.name}</p>
+          {/if}
         </div>
         {#if receiptFile}
           <button
@@ -297,6 +305,12 @@
     gap: var(--space-sm);
     padding-bottom: var(--space-md);
     border-bottom: 1px dashed var(--color-border);
+  }
+
+  .selected-file {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--color-ink-muted);
   }
 
   form {
