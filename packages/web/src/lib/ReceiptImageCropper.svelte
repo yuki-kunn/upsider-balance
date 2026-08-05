@@ -1,28 +1,24 @@
 <script lang="ts">
   /**
-   * レシートを撮影し、四隅を自動検知・手動調整して切り抜くコンポーネント。
-   * https://github.com/Asuma09/receipt-uploader のCameraCapture.tsxを移植したもの。
-   * 元実装はNotion送信・複数枚バッチ・事業カテゴリ選択まで含むが、このプロジェクトは
-   * 「1件ずつ登録してAIが解析する」設計のため、撮影〜切り抜きの単体フローのみ移植する。
-   * 切り抜き確定後はonCaptured(file)で呼び出し元にJPEG Fileを渡す。
+   * レシート画像の四隅を自動検知・手動調整して切り抜くコンポーネント。
+   * https://github.com/Asuma09/receipt-uploader のCameraCapture.tsxのうち、
+   * 「撮影後に四隅を検知・調整して切り抜く」部分のみを移植したもの。
+   * 元実装のカメラ起動・自動シャッター・Notion送信・複数枚バッチ・事業カテゴリ選択は
+   * このプロジェクトの設計（既存の<input type="file">で選んだ1件をAIが解析する）に合わないため、
+   * 移植していない。撮影・画像選択自体は呼び出し元の既存のファイル選択欄（<input type="file">）が
+   * 担い、このコンポーネントは選ばれたFileを受け取ってトリミングUIを出すだけに専念する。
    *
-   * 撮影方式について: 当初はgetUserMediaでライブカメラ映像を表示し、レシートを自動検知して
-   * 自動シャッターする方式だったが、iOS Safariでカメラ起動が不安定（プライベートブラウジング
-   * で画面が固まる、通常モードでもカメラが起動しないなど）だったため、
-   * <input type="file" capture="environment">でOS標準のカメラアプリを起動する方式に変更した。
-   * ネイティブカメラアプリ自体は各OS・ブラウザで枯れた実装なので確実に動作する。
-   * 撮影後の「四隅検知・手動調整して切り抜く」処理は元のOpenCV.jsベースの実装をそのまま使う。
+   * confirmCrop()/useFullFrame()で確定した画像はonCaptured(file)で呼び出し元にJPEG Fileとして渡す。
    */
   import { onDestroy } from "svelte";
 
-  let { onCaptured, onClose }: { onCaptured: (file: File) => void; onClose: () => void } = $props();
+  let { file, onCaptured, onClose }: { file: File; onCaptured: (file: File) => void; onClose: () => void } = $props();
 
-  let fileInputRef = $state<HTMLInputElement | null>(null);
   let canvasRef = $state<HTMLCanvasElement | null>(null);
   let svgRef = $state<SVGSVGElement | null>(null);
   let imgAreaRef = $state<HTMLDivElement | null>(null);
 
-  let status = $state("");
+  let status = $state("読み込み中…");
   let cvReady = $state(false);
 
   let adjustUrl = $state<string | null>(null);
@@ -291,8 +287,8 @@
     return out;
   }
 
-  // OpenCV.js（自動検知用、約8MBのWASM）を読み込む。撮影した画像を四隅検知するため、
-  // モーダルを開いた時点でバックグラウンドで読み込みを開始する（ファイル選択自体はこれを待たない）。
+  // OpenCV.js（自動検知用、約8MBのWASM）を読み込む。読み込みが間に合わなければ
+  // 自動検知なしの手動クロップにフォールバックする（confirmCrop内でcvReadyを見て判断）。
   function loadOpenCv() {
     let cancelled = false;
     let poll: ReturnType<typeof setInterval> | null = null;
@@ -352,6 +348,57 @@
     return cleanup;
   });
 
+  // 渡されたFileを読み込み、四隅を検知して切り抜き調整パネルの初期状態を作る
+  $effect(() => {
+    let cancelled = false;
+    status = "読み込み中…";
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      if (cancelled) {
+        URL.revokeObjectURL(objectUrl);
+        return;
+      }
+      URL.revokeObjectURL(objectUrl);
+      const full = document.createElement("canvas");
+      full.width = img.naturalWidth;
+      full.height = img.naturalHeight;
+      full.getContext("2d")?.drawImage(img, 0, 0);
+
+      const auto = cvReadyRef.current ? detectInitialQuad(full) : null;
+      imgDims = { w: full.width, h: full.height };
+      quad = auto ?? defaultQuad(full.width, full.height);
+      autoDetected = !!auto;
+      fullFrame = full;
+
+      full.toBlob(
+        (blob) => {
+          if (cancelled) return;
+          if (!blob) {
+            status = "画像の読み込みに失敗しました";
+            return;
+          }
+          if (adjustUrlRef.current) URL.revokeObjectURL(adjustUrlRef.current);
+          const url = URL.createObjectURL(blob);
+          adjustUrlRef.current = url;
+          adjustUrl = url;
+          status = auto ? "四隅を確認して切り抜き" : "四隅を合わせて切り抜き";
+        },
+        "image/jpeg",
+        0.92,
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      if (!cancelled) status = "画像の読み込みに失敗しました。別の画像でお試しください";
+    };
+    img.src = objectUrl;
+
+    return () => {
+      cancelled = true;
+    };
+  });
+
   // 調整画面：写真の4隅が全部画面に収まるよう表示サイズを計算
   $effect(() => {
     if (!imgDims.w || !imgDims.h) {
@@ -392,63 +439,13 @@
     if (adjustUrlRef.current) URL.revokeObjectURL(adjustUrlRef.current);
   });
 
-  function openFilePicker() {
-    fileInputRef?.click();
-  }
-
-  function handleFileSelected(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    // 同じファイルを連続して選び直した場合もchangeイベントが発火するようにリセットしておく
-    input.value = "";
-    if (!file) return;
-
-    status = "読み込み中…";
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      const full = document.createElement("canvas");
-      full.width = img.naturalWidth;
-      full.height = img.naturalHeight;
-      full.getContext("2d")?.drawImage(img, 0, 0);
-
-      const auto = cvReadyRef.current ? detectInitialQuad(full) : null;
-      imgDims = { w: full.width, h: full.height };
-      quad = auto ?? defaultQuad(full.width, full.height);
-      autoDetected = !!auto;
-      fullFrame = full;
-
-      full.toBlob(
-        (blob) => {
-          if (!blob) {
-            status = "画像の読み込みに失敗しました";
-            return;
-          }
-          if (adjustUrlRef.current) URL.revokeObjectURL(adjustUrlRef.current);
-          const url = URL.createObjectURL(blob);
-          adjustUrlRef.current = url;
-          adjustUrl = url;
-          status = auto ? "四隅を確認して切り抜き" : "四隅を合わせて切り抜き";
-        },
-        "image/jpeg",
-        0.92,
-      );
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      status = "画像の読み込みに失敗しました。別の画像でお試しください";
-    };
-    img.src = objectUrl;
-  }
-
   function finish(out: HTMLCanvasElement) {
     out.toBlob(
       (blob) => {
         if (!blob) return;
-        const file = new File([blob], "receipt.jpg", { type: "image/jpeg" });
+        const croppedFile = new File([blob], file.name || "receipt.jpg", { type: "image/jpeg" });
         cleanupAdjust();
-        onCaptured(file);
+        onCaptured(croppedFile);
       },
       "image/jpeg",
       0.9,
@@ -482,12 +479,6 @@
     const full = fullFrame;
     if (!full) return;
     finish(full);
-  }
-
-  function retake() {
-    cleanupAdjust();
-    status = "";
-    openFilePicker();
   }
 
   function pointerToImg(e: PointerEvent): number[] | null {
@@ -544,20 +535,11 @@
 
 <div class="camera-overlay">
   <div class="camera-frame">
-    <input
-      bind:this={fileInputRef}
-      type="file"
-      accept="image/*"
-      capture="environment"
-      class="hidden"
-      onchange={handleFileSelected}
-    />
     <canvas bind:this={canvasRef} class="hidden"></canvas>
 
     {#if !adjustUrl}
       <div class="picker-panel">
-        <p class="status-badge">{status || "レシートを撮影してください"}</p>
-        <button type="button" class="btn btn-primary picker-btn" onclick={openFilePicker}>カメラで撮影</button>
+        <p class="status-badge">{status}</p>
         <button type="button" class="close-btn" onclick={handleClose} aria-label="閉じる">✕</button>
       </div>
     {/if}
@@ -572,7 +554,7 @@
         <div bind:this={imgAreaRef} class="adjust-image-area">
           {#if dispSize}
             <div class="adjust-image-wrap" style={`width:${dispSize.w}px;height:${dispSize.h}px;`}>
-              <img src={adjustUrl} alt="撮影画像" draggable="false" class="adjust-image" />
+              <img src={adjustUrl} alt="選択した画像" draggable="false" class="adjust-image" />
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <svg
                 bind:this={svgRef}
@@ -609,7 +591,7 @@
         </div>
 
         <div class="adjust-actions">
-          <button type="button" class="btn btn-secondary" onclick={retake}>撮り直す</button>
+          <button type="button" class="btn btn-secondary" onclick={handleClose}>キャンセル</button>
           <button type="button" class="btn btn-secondary" onclick={useFullFrame}>全体を使う</button>
           <button type="button" class="btn btn-primary adjust-confirm" onclick={confirmCrop}>切り抜く</button>
         </div>
@@ -650,11 +632,6 @@
     height: 100%;
     align-items: center;
     justify-content: center;
-  }
-
-  .picker-btn {
-    height: 4rem;
-    width: 14rem;
   }
 
   .status-badge {

@@ -6,7 +6,7 @@
   import { goto } from "$app/navigation";
   import { uploadReceiptImage } from "$lib/receipt-upload";
   import { millisToDateInput, dateInputToMillis, formatDate } from "$lib/date-format";
-  import ReceiptCameraCapture from "$lib/ReceiptCameraCapture.svelte";
+  import ReceiptImageCropper from "$lib/ReceiptImageCropper.svelte";
 
   const HISTORY_PREVIEW_COUNT = 3;
 
@@ -25,7 +25,8 @@
   let analyzing = $state(false);
   let analyzeError = $state("");
   let analyzeResult = $state<AnalyzeReceiptResponse | null>(null);
-  let cameraOpen = $state(false);
+  /** ファイル選択直後、切り抜き調整のため一時的に保持する画像。ここに値がある間だけトリミングモーダルを開く */
+  let pendingCropFile = $state<File | null>(null);
 
   let purchases = $state<PurchaseListItem[]>([]);
   let historyLoading = $state(false);
@@ -107,21 +108,27 @@
     }
   }
 
+  /** ファイル選択（カメラ撮影・ギャラリー選択いずれも）直後に切り抜き調整モーダルを挟む */
   function handleReceiptFileChange(event: Event) {
     const input = event.target as HTMLInputElement;
-    receiptFile = input.files?.[0] ?? null;
-    analyzeError = "";
-    analyzeResult = null;
-    receiptImagePath = null;
+    const file = input.files?.[0] ?? null;
+    // 同じファイルを選び直した場合もchangeイベントが発火するようにリセットしておく
+    input.value = "";
+    if (!file) return;
+    pendingCropFile = file;
   }
 
-  /** カメラで撮影・切り抜き済みの画像を受け取り、通常のファイル選択と同じ扱いにする */
-  function handleCameraCaptured(file: File) {
+  /** 切り抜き確定後の画像を受け取り、以降は既存のフローと同じ扱いにする */
+  function handleCropConfirmed(file: File) {
     receiptFile = file;
     analyzeError = "";
     analyzeResult = null;
     receiptImagePath = null;
-    cameraOpen = false;
+    pendingCropFile = null;
+  }
+
+  function handleCropCancelled() {
+    pendingCropFile = null;
   }
 
   async function handleAnalyzeReceipt() {
@@ -183,23 +190,13 @@
       <div class="receipt-upload">
         <div class="field">
           <label for="receiptFile">レシート写真（任意・AIが金額と品目を読み取ります）</label>
-          <div class="receipt-input-row">
-            <input
-              id="receiptFile"
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/heic"
-              onchange={handleReceiptFileChange}
-              disabled={analyzing}
-            />
-            <button
-              type="button"
-              class="btn btn-secondary btn-sm"
-              onclick={() => (cameraOpen = true)}
-              disabled={analyzing}
-            >
-              カメラで撮影
-            </button>
-          </div>
+          <input
+            id="receiptFile"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic"
+            onchange={handleReceiptFileChange}
+            disabled={analyzing}
+          />
         </div>
         {#if receiptFile}
           <button
@@ -272,8 +269,8 @@
     </section>
   </main>
 
-  {#if cameraOpen}
-    <ReceiptCameraCapture onCaptured={handleCameraCaptured} onClose={() => (cameraOpen = false)} />
+  {#if pendingCropFile}
+    <ReceiptImageCropper file={pendingCropFile} onCaptured={handleCropConfirmed} onClose={handleCropCancelled} />
   {/if}
 </div>
 
@@ -300,18 +297,6 @@
     gap: var(--space-sm);
     padding-bottom: var(--space-md);
     border-bottom: 1px dashed var(--color-border);
-  }
-
-  .receipt-input-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    flex-wrap: wrap;
-  }
-
-  .receipt-input-row input[type="file"] {
-    flex: 1;
-    min-width: 0;
   }
 
   form {
