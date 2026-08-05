@@ -6,6 +6,7 @@
   import { goto } from "$app/navigation";
   import { uploadReceiptImage } from "$lib/receipt-upload";
   import { millisToDateInput, dateInputToMillis, formatDate } from "$lib/date-format";
+  import ReceiptCameraCapture from "$lib/ReceiptCameraCapture.svelte";
 
   const HISTORY_PREVIEW_COUNT = 3;
 
@@ -24,6 +25,7 @@
   let analyzing = $state(false);
   let analyzeError = $state("");
   let analyzeResult = $state<AnalyzeReceiptResponse | null>(null);
+  let cameraOpen = $state(false);
 
   let purchases = $state<PurchaseListItem[]>([]);
   let historyLoading = $state(false);
@@ -113,6 +115,15 @@
     receiptImagePath = null;
   }
 
+  /** カメラで撮影・切り抜き済みの画像を受け取り、通常のファイル選択と同じ扱いにする */
+  function handleCameraCaptured(file: File) {
+    receiptFile = file;
+    analyzeError = "";
+    analyzeResult = null;
+    receiptImagePath = null;
+    cameraOpen = false;
+  }
+
   async function handleAnalyzeReceipt() {
     if (!receiptFile) return;
     analyzeError = "";
@@ -172,13 +183,23 @@
       <div class="receipt-upload">
         <div class="field">
           <label for="receiptFile">レシート写真（任意・AIが金額と品目を読み取ります）</label>
-          <input
-            id="receiptFile"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/heic"
-            onchange={handleReceiptFileChange}
-            disabled={analyzing}
-          />
+          <div class="receipt-input-row">
+            <input
+              id="receiptFile"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/heic"
+              onchange={handleReceiptFileChange}
+              disabled={analyzing}
+            />
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              onclick={() => (cameraOpen = true)}
+              disabled={analyzing}
+            >
+              カメラで撮影
+            </button>
+          </div>
         </div>
         {#if receiptFile}
           <button
@@ -250,6 +271,10 @@
       {/if}
     </section>
   </main>
+
+  {#if cameraOpen}
+    <ReceiptCameraCapture onCaptured={handleCameraCaptured} onClose={() => (cameraOpen = false)} />
+  {/if}
 </div>
 
 <style>
@@ -275,6 +300,18 @@
     gap: var(--space-sm);
     padding-bottom: var(--space-md);
     border-bottom: 1px dashed var(--color-border);
+  }
+
+  .receipt-input-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+  }
+
+  .receipt-input-row input[type="file"] {
+    flex: 1;
+    min-width: 0;
   }
 
   form {
