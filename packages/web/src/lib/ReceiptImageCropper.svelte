@@ -16,7 +16,6 @@
 
   let canvasRef = $state<HTMLCanvasElement | null>(null);
   let svgRef = $state<SVGSVGElement | null>(null);
-  let imgAreaRef = $state<HTMLDivElement | null>(null);
 
   let status = $state("読み込み中…");
   let cvReady = $state(false);
@@ -26,7 +25,6 @@
   let imgDims = $state({ w: 0, h: 0 });
   let autoDetected = $state(false);
   let dragPos = $state<{ x: number; y: number } | null>(null);
-  let dispSize = $state<{ w: number; h: number } | null>(null);
 
   const cvReadyRef = { current: false };
   const adjustUrlRef = { current: null as string | null };
@@ -399,42 +397,6 @@
     };
   });
 
-  // 調整画面：写真の4隅が全部画面に収まるよう表示サイズを計算
-  $effect(() => {
-    if (!imgDims.w || !imgDims.h) {
-      dispSize = null;
-      return;
-    }
-    const compute = () => {
-      const el = imgAreaRef;
-      if (!el) return;
-      const top = el.getBoundingClientRect().top;
-      const footer = 120;
-      const availH = Math.max(140, window.innerHeight - top - footer);
-      const availW = el.clientWidth || window.innerWidth;
-      const s = Math.min(availW / imgDims.w, availH / imgDims.h);
-      dispSize = { w: Math.round(imgDims.w * s), h: Math.round(imgDims.h * s) };
-    };
-    compute();
-    window.addEventListener("resize", compute);
-    window.addEventListener("orientationchange", compute);
-    return () => {
-      window.removeEventListener("resize", compute);
-      window.removeEventListener("orientationchange", compute);
-    };
-  });
-
-  // iOS Safariでは固定要素（position: fixed）の上に重なるモーダルを開いている間も
-  // 背後のページがスクロールしてしまい、タップ位置がずれてボタンが反応しないように
-  // 見えることがある。モーダル表示中は背景のスクロールを止める。
-  $effect(() => {
-    const original = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = original;
-    };
-  });
-
   onDestroy(() => {
     if (adjustUrlRef.current) URL.revokeObjectURL(adjustUrlRef.current);
   });
@@ -551,43 +513,41 @@
           <button type="button" class="btn btn-secondary btn-sm" onclick={resetQuad}>枠をリセット</button>
         </div>
 
-        <div bind:this={imgAreaRef} class="adjust-image-area">
-          {#if dispSize}
-            <div class="adjust-image-wrap" style={`width:${dispSize.w}px;height:${dispSize.h}px;`}>
-              <img src={adjustUrl} alt="選択した画像" draggable="false" class="adjust-image" />
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <svg
-                bind:this={svgRef}
-                viewBox={`0 0 ${imgDims.w} ${imgDims.h}`}
-                preserveAspectRatio="none"
-                class="adjust-svg"
-                onpointermove={onCornerMove}
-                onpointerup={onCornerUp}
-              >
-                <polygon
-                  points={quad.map((p) => p.join(",")).join(" ")}
-                  fill="rgba(59,130,246,0.12)"
-                  stroke="#3b82f6"
-                  stroke-width={Math.max(imgDims.w, imgDims.h) / 240}
-                  style="pointer-events: none;"
+        <div class="adjust-image-area">
+          <div class="adjust-image-wrap" style={`aspect-ratio: ${imgDims.w} / ${imgDims.h};`}>
+            <img src={adjustUrl} alt="選択した画像" draggable="false" class="adjust-image" />
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <svg
+              bind:this={svgRef}
+              viewBox={`0 0 ${imgDims.w} ${imgDims.h}`}
+              preserveAspectRatio="none"
+              class="adjust-svg"
+              onpointermove={onCornerMove}
+              onpointerup={onCornerUp}
+            >
+              <polygon
+                points={quad.map((p) => p.join(",")).join(" ")}
+                fill="rgba(59,130,246,0.12)"
+                stroke="#3b82f6"
+                stroke-width={Math.max(imgDims.w, imgDims.h) / 240}
+                style="pointer-events: none;"
+              />
+              {#each quad as p, i (i)}
+                {@const R = Math.max(imgDims.w, imgDims.h)}
+                <circle cx={p[0]} cy={p[1]} r={R / 26} fill="rgba(59,130,246,0.2)" stroke="#ffffff" stroke-width={R / 260} style="pointer-events: none;" />
+                <circle cx={p[0]} cy={p[1]} r={R / 150} fill="#ef4444" style="pointer-events: none;" />
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <circle
+                  cx={p[0]}
+                  cy={p[1]}
+                  r={R / 12}
+                  fill="transparent"
+                  style="pointer-events: all; cursor: grab;"
+                  onpointerdown={(e) => onCornerDown(e, i)}
                 />
-                {#each quad as p, i (i)}
-                  {@const R = Math.max(imgDims.w, imgDims.h)}
-                  <circle cx={p[0]} cy={p[1]} r={R / 26} fill="rgba(59,130,246,0.2)" stroke="#ffffff" stroke-width={R / 260} style="pointer-events: none;" />
-                  <circle cx={p[0]} cy={p[1]} r={R / 150} fill="#ef4444" style="pointer-events: none;" />
-                  <!-- svelte-ignore a11y_no_static_element_interactions -->
-                  <circle
-                    cx={p[0]}
-                    cy={p[1]}
-                    r={R / 12}
-                    fill="transparent"
-                    style="pointer-events: all; cursor: grab;"
-                    onpointerdown={(e) => onCornerDown(e, i)}
-                  />
-                {/each}
-              </svg>
-            </div>
-          {/if}
+              {/each}
+            </svg>
+          </div>
         </div>
 
         <div class="adjust-actions">
@@ -606,20 +566,17 @@
     inset: 0;
     z-index: 100;
     background: #000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
 
   .camera-frame {
-    position: relative;
+    display: flex;
+    flex-direction: column;
     width: 100%;
     height: 100%;
     max-width: 480px;
     margin: 0 auto;
     background: #000;
     color: #fff;
-    overflow: auto;
   }
 
   .hidden {
@@ -629,7 +586,7 @@
   .picker-panel {
     position: relative;
     display: flex;
-    height: 100%;
+    flex: 1;
     align-items: center;
     justify-content: center;
   }
@@ -662,13 +619,20 @@
     line-height: 1;
   }
 
+  /* flexで画像エリア(min-height:0で縮小可)とヘッダー・ボタン行を分け、
+     ボタン行が画面外にはみ出さず必ず見える高さを確保する */
   .adjust-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
     background: #000;
     color: #fff;
   }
 
   .adjust-header {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: space-between;
     gap: var(--space-sm);
@@ -683,23 +647,30 @@
 
   .adjust-image-area {
     display: flex;
+    flex: 1;
+    min-height: 0;
     width: 100%;
+    align-items: center;
     justify-content: center;
+    padding: var(--space-sm);
     overflow: hidden;
   }
 
   .adjust-image-wrap {
     position: relative;
+    width: 100%;
+    max-height: 100%;
     user-select: none;
-    touch-action: none;
   }
 
   .adjust-image {
-    position: absolute;
-    inset: 0;
-    height: 100%;
+    display: block;
     width: 100%;
+    height: auto;
+    max-height: 100%;
+    object-fit: contain;
     user-select: none;
+    pointer-events: none;
   }
 
   .adjust-svg {
@@ -712,8 +683,10 @@
 
   .adjust-actions {
     display: flex;
+    flex: 0 0 auto;
     gap: var(--space-sm);
     padding: var(--space-md);
+    padding-bottom: max(var(--space-md), env(safe-area-inset-bottom));
   }
 
   .adjust-actions .btn {
