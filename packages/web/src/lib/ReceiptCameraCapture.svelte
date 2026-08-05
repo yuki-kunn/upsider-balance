@@ -19,6 +19,8 @@
 
   let status = $state("起動中…");
   let started = $state(false);
+  /** getUserMediaが成功し、実際に映像の再生まで進んだか。シャッターボタンの表示条件に使う */
+  let cameraLive = $state(false);
   let mode = $state<Mode>("camera");
   let cvReady = $state(false);
 
@@ -390,8 +392,34 @@
   });
 
   async function handleStart() {
+    // 「もう一度試す」での再試行に備え、前回状態をリセットする
+    cameraLive = false;
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      stream = null;
+    }
+
+    // iOS Safariではプライベートブラウジングや一部のWebView（アプリ内ブラウザ）で
+    // navigator.mediaDevices自体がundefinedになることがある。この場合getUserMediaの
+    // 呼び出しで即座に例外になるはずだが、念のため事前にチェックして明示的なメッセージを出す。
+    if (!navigator.mediaDevices?.getUserMedia) {
+      started = true;
+      status =
+        "このブラウザ・画面ではカメラを利用できません。Safariで開いているか、設定でカメラへのアクセスを許可しているかご確認ください（アプリ内ブラウザでは利用できない場合があります）";
+      return;
+    }
+
     started = true;
     status = "カメラ起動中…";
+
+    // getUserMediaの許可プロンプトを無視/放置するとPromiseが返らずここで止まり続けるため、
+    // 一定時間で諦めてエラー表示に切り替える（「起動中…」のまま固まって見えるのを防ぐ）。
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      status = "カメラの起動がタイムアウトしました。画面上部の許可ダイアログを確認するか、再度お試しください";
+    }, 15000);
+
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -401,14 +429,31 @@
         },
         audio: false,
       });
+      clearTimeout(timeoutId);
+      if (timedOut) {
+        // タイムアウト表示後に許可された場合、ユーザーが状況を把握できるよう一旦ストリームは止める
+        stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+        return;
+      }
       if (videoRef) {
         videoRef.srcObject = stream;
         await videoRef.play();
         status = "レシートを写してください";
+        cameraLive = true;
         requestAnimationFrame(loop);
       }
     } catch (e: any) {
-      status = `カメラ起動失敗: ${e?.message ?? e}`;
+      clearTimeout(timeoutId);
+      const name = e?.name ?? "";
+      if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+        status =
+          "カメラへのアクセスが許可されていません。ブラウザの設定（Safari: 設定アプリ→Safari→カメラ、またはサイトのアドレスバー横のアイコン）から許可してください";
+      } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+        status = "利用できるカメラが見つかりませんでした";
+      } else {
+        status = `カメラ起動失敗: ${e?.message ?? e}`;
+      }
     }
   }
 
@@ -647,10 +692,13 @@
 
     {#if mode === "camera"}
       <p class="status-badge">{status}</p>
-      {#if started && !cvReady}
+      {#if started && !cameraLive}
+        <button type="button" class="btn btn-secondary retry-btn" onclick={handleStart}>もう一度試す</button>
+      {/if}
+      {#if cameraLive && !cvReady}
         <p class="status-badge status-badge-sub">自動シャッター準備中（手動で撮影・切り抜きできます）</p>
       {/if}
-      {#if started}
+      {#if cameraLive}
         <button type="button" class="shutter-btn" aria-label="撮影" onclick={capture}></button>
       {/if}
       <button type="button" class="close-btn" onclick={handleClose} aria-label="閉じる">✕</button>
@@ -772,6 +820,17 @@
     top: calc(var(--space-md) + 2.5rem);
     background: rgba(0, 0, 0, 0.6);
     font-size: 0.75rem;
+  }
+
+  .retry-btn {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    margin: auto;
+    height: 3rem;
+    width: 12rem;
+    top: 60%;
+    transform: translateY(-50%);
   }
 
   .shutter-btn {
