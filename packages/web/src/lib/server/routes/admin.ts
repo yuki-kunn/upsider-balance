@@ -13,6 +13,7 @@ import {
 } from "../lib/validation.js";
 import { resolveSoleFacilityId } from "../lib/facility.js";
 import { respondWithError } from "../lib/error-response.js";
+import { syncPurchaseToNotion } from "../lib/notion-sync.js";
 
 export const adminRoute = new Hono<AppEnv>();
 
@@ -155,6 +156,42 @@ adminRoute.patch("/purchases/:id", async (c) => {
     return c.json(result);
   } catch (err) {
     return respondWithError(c, err, "failed to update purchase");
+  }
+});
+
+/**
+ * POST /admin/purchases/:id/notion-sync
+ * adminのみ。Notionへの同期に失敗した購入を再送信する。
+ * 成功・失敗どちらでもFirestoreのnotionSyncStatus/notionSyncErrorを更新し、
+ * その結果をそのままレスポンスとして返す（購入登録時と同じsyncPurchaseToNotionを再利用）。
+ */
+adminRoute.post("/purchases/:id/notion-sync", async (c) => {
+  const db = getDb();
+  const facilityId = await resolveSoleFacilityId(db);
+  if (!facilityId) {
+    return c.json({ error: "not_found", message: "facility not found" }, 404);
+  }
+  const purchaseId = c.req.param("id");
+
+  try {
+    const purchaseRef = db.doc(`facilities/${facilityId}/purchases/${purchaseId}`);
+    const snap = await purchaseRef.get();
+    if (!snap.exists) {
+      throw new NotFoundError("purchase not found");
+    }
+    const data = snap.data()!;
+
+    const result = await syncPurchaseToNotion(db, facilityId, purchaseId, {
+      amount: data.amount as number,
+      storeName: (data.storeName as string | null) ?? null,
+      memo: (data.memo as string | null) ?? null,
+      purchasedAt: data.purchasedAt as Timestamp,
+      receiptImagePath: (data.receiptImagePath as string | null) ?? null,
+    });
+
+    return c.json(result);
+  } catch (err) {
+    return respondWithError(c, err, "failed to sync purchase to Notion");
   }
 });
 

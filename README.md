@@ -30,6 +30,10 @@ firebase apps:sdkconfig WEB <appId> --project upsider-balance
 - `VITE_FIREBASE_*`: Firebase Web SDKのクライアント設定。クライアントに埋め込む前提の公開情報。
 - `FIREBASE_SERVICE_ACCOUNT_KEY`: Firebase Admin SDK用のサービスアカウント鍵（JSON文字列そのまま）。サーバー側のみで使用、機密情報。
 - `GEMINI_API_KEY`: レシート画像解析用（Sprint4以降で使用）。
+- `NOTION_TOKEN` / `NOTION_DATABASE_ID`: 購入登録のたびにレシート画像・金額・日付をNotionデータベースへ自動送信する連携機能で使用（任意。未設定でも購入登録自体は正常に動作し、Notion同期のみ `notSynced`/`failed` 扱いになる）。
+  - Notion Integration（[https://www.notion.so/my-integrations](https://www.notion.so/my-integrations)）を作成し、Internal Integration Tokenを`NOTION_TOKEN`に設定する
+  - 保存先データベースを作成し、Title・Number・Date・Files&mediaのプロパティを含める（プロパティ名は自由。型で自動検出される）。データベースの右上「…」→「コネクト」で上記Integrationを接続し、URLに含まれる32桁のIDを`NOTION_DATABASE_ID`に設定する
+  - Notion送信が失敗した場合、admin管理画面の購入履歴に「Notion送信失敗」バッジと「Notionに再送信」ボタンが表示される
 
 ### アカウント作成（施設・admin）
 

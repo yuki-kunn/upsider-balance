@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { PurchaseListItem } from "@upsider-balance/shared";
-  import { apiGet, apiPatch, apiDelete } from "$lib/api-client";
+  import { apiGet, apiPatch, apiPost, apiDelete } from "$lib/api-client";
   import { millisToDateInput, dateInputToMillis, formatDate, formatMonthLabel } from "$lib/date-format";
 
   const now = new Date();
@@ -23,6 +23,8 @@
   let editError = $state("");
 
   let deletingId = $state<string | null>(null);
+  let syncingId = $state<string | null>(null);
+  let syncError = $state("");
 
   const totalAmount = $derived(purchases.reduce((sum, p) => sum + p.amount, 0));
 
@@ -120,6 +122,19 @@
     }
   }
 
+  async function retryNotionSync(id: string) {
+    syncError = "";
+    syncingId = id;
+    try {
+      await apiPost(`/admin/purchases/${id}/notion-sync`, {});
+      await loadMonth();
+    } catch {
+      syncError = "Notionへの再送信に失敗しました";
+    } finally {
+      syncingId = null;
+    }
+  }
+
   onMount(() => {
     loadMonth();
   });
@@ -142,6 +157,9 @@
         <button class="btn btn-secondary btn-sm" onclick={goToNextMonth} disabled={loading}>次月 →</button>
       </div>
 
+      {#if syncError}
+        <p class="alert alert-error" role="alert">{syncError}</p>
+      {/if}
       {#if error}
         <p class="alert alert-error" role="alert">{error}</p>
       {:else if loading}
@@ -208,9 +226,23 @@
                     {#if purchase.editedByAdmin}
                       <span class="badge badge-warning">編集済み</span>
                     {/if}
+                    {#if purchase.notionSyncStatus === "failed"}
+                      <span class="badge badge-danger" title={purchase.notionSyncError ?? ""}>Notion送信失敗</span>
+                    {:else if purchase.notionSyncStatus === "synced"}
+                      <span class="badge badge-success">Notion送信済み</span>
+                    {/if}
                   </div>
                   <div class="purchase-actions">
                     <button class="btn btn-secondary btn-sm" onclick={() => startEdit(purchase)}>編集</button>
+                    {#if purchase.notionSyncStatus === "failed"}
+                      <button
+                        class="btn btn-secondary btn-sm"
+                        onclick={() => retryNotionSync(purchase.id)}
+                        disabled={syncingId === purchase.id}
+                      >
+                        {syncingId === purchase.id ? "送信中…" : "Notionに再送信"}
+                      </button>
+                    {/if}
                     <button
                       class="btn btn-danger btn-sm"
                       onclick={() => handleDelete(purchase.id)}

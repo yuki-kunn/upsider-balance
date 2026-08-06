@@ -366,6 +366,16 @@ input:focus-visible,
   color: var(--color-warning-ink);
 }
 
+.badge-danger {
+  background: var(--color-negative-soft);
+  color: var(--color-negative);
+}
+
+.badge-success {
+  background: var(--color-positive-soft);
+  color: var(--color-positive);
+}
+
 .balance-figure {
   font-family: var(--font-numeric);
   font-variant-numeric: tabular-nums;
