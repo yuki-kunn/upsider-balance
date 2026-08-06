@@ -1,20 +1,43 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { Balance, PurchaseListItem } from "@upsider-balance/shared";
+  import type { Balance, PurchaseListItem, AnalyzeReceiptResponse } from "@upsider-balance/shared";
   import { apiGet, apiPatch, apiPost, apiDelete } from "$lib/api-client";
   import { logout } from "$lib/auth";
   import { goto } from "$app/navigation";
+  import { uploadReceiptImage } from "$lib/receipt-upload";
   import { millisToDateInput, dateInputToMillis, formatDate } from "$lib/date-format";
+  import ReceiptImageCropper from "$lib/ReceiptImageCropper.svelte";
 
   const HISTORY_PREVIEW_COUNT = 3;
 
   let balance = $state<Balance | null>(null);
   let balanceError = $state("");
+  /** レシートアップロード先パス組み立て用。adminのCustom Claimsにはfacilityidが無いため、
+   * GET /balance のレスポンスから取得して保持しておく（uploadReceiptImageに明示的に渡す） */
+  let facilityId = $state<string | null>(null);
 
   let balanceMode = $state<"amount" | "delta">("amount");
   let balanceInput = $state("");
   let balanceSubmitting = $state(false);
   let balanceSubmitError = $state("");
+
+  // --- 購入登録（staff画面の購入登録フォームと同じもの） ---
+  let newAmount = $state("");
+  let newStoreName = $state("");
+  let newMemo = $state("");
+  let newPurchasedAt = $state(millisToDateInput(Date.now()));
+  let newSubmitting = $state(false);
+  let newSubmitError = $state("");
+
+  let newReceiptFile = $state<File | null>(null);
+  let newCameraFileInputRef = $state<HTMLInputElement | null>(null);
+  let newGalleryFileInputRef = $state<HTMLInputElement | null>(null);
+  let newReceiptImagePath = $state<string | null>(null);
+  let newAnalyzing = $state(false);
+  let newAnalyzeError = $state("");
+  let newAnalyzeResult = $state<AnalyzeReceiptResponse | null>(null);
+  /** ファイル選択直後、切り抜き調整のため一時的に保持する画像 */
+  let newPendingCropFile = $state<File | null>(null);
 
   let purchases = $state<PurchaseListItem[]>([]);
   let historyLoading = $state(false);
@@ -38,6 +61,7 @@
     try {
       const res = await apiGet<{ facilityId: string; balance: Balance }>("/balance");
       balance = res.balance;
+      facilityId = res.facilityId;
       balanceError = "";
     } catch {
       balanceError = "残額の取得に失敗しました";
@@ -90,6 +114,101 @@
       balanceSubmitError = "残額の更新に失敗しました";
     } finally {
       balanceSubmitting = false;
+    }
+  }
+
+  // --- 購入登録（staff画面のdashboard/+page.svelteと同じロジック） ---
+  async function handleNewPurchaseSubmit(event: SubmitEvent) {
+    event.preventDefault();
+    newSubmitError = "";
+
+    const amountValue = Number(newAmount);
+    if (!Number.isFinite(amountValue) || !Number.isInteger(amountValue)) {
+      newSubmitError = "金額は整数で入力してください";
+      return;
+    }
+    const purchasedAtMillis = dateInputToMillis(newPurchasedAt, Date.now());
+    if (purchasedAtMillis === null) {
+      newSubmitError = "購入日を正しく入力してください";
+      return;
+    }
+
+    newSubmitting = true;
+    try {
+      await apiPost("/purchases", {
+        amount: amountValue,
+        storeName: newStoreName.trim().length > 0 ? newStoreName.trim() : null,
+        memo: newMemo.trim().length > 0 ? newMemo.trim() : null,
+        purchasedAt: purchasedAtMillis,
+        receiptImagePath: newReceiptImagePath,
+        receiptOcrRaw: newAnalyzeResult?.raw ?? null,
+      });
+      newAmount = "";
+      newStoreName = "";
+      newMemo = "";
+      newPurchasedAt = millisToDateInput(Date.now());
+      newReceiptFile = null;
+      if (newCameraFileInputRef) newCameraFileInputRef.value = "";
+      if (newGalleryFileInputRef) newGalleryFileInputRef.value = "";
+      newReceiptImagePath = null;
+      newAnalyzeResult = null;
+      await Promise.all([loadBalance(), loadPurchases()]);
+    } catch {
+      newSubmitError = "購入登録に失敗しました";
+    } finally {
+      newSubmitting = false;
+    }
+  }
+
+  /** ファイル選択（カメラ撮影・ギャラリー選択いずれも）直後に切り抜き調整モーダルを挟む */
+  function handleNewReceiptFileChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = "";
+    if (!file) return;
+    newPendingCropFile = file;
+  }
+
+  function handleNewCropConfirmed(file: File) {
+    newReceiptFile = file;
+    newAnalyzeError = "";
+    newAnalyzeResult = null;
+    newReceiptImagePath = null;
+    newPendingCropFile = null;
+  }
+
+  function handleNewCropCancelled() {
+    newPendingCropFile = null;
+  }
+
+  async function handleNewAnalyzeReceipt() {
+    if (!newReceiptFile) return;
+    if (!facilityId) {
+      newAnalyzeError = "施設情報を取得できませんでした。ページを再読み込みしてください";
+      return;
+    }
+    newAnalyzeError = "";
+    newAnalyzing = true;
+    try {
+      const path = await uploadReceiptImage(newReceiptFile, facilityId);
+      newReceiptImagePath = path;
+      const result = await apiPost<AnalyzeReceiptResponse>("/receipts/analyze", {
+        receiptImagePath: path,
+      });
+      newAnalyzeResult = result;
+      if (result.amountCandidates.length > 0) {
+        newAmount = String(result.amountCandidates[0]);
+      }
+      if (result.storeNameCandidates.length > 0) {
+        newStoreName = result.storeNameCandidates[0];
+      }
+      if (result.itemCandidates.length > 0) {
+        newMemo = result.itemCandidates.join(" ");
+      }
+    } catch (e) {
+      newAnalyzeError = e instanceof Error ? e.message : "レシート画像の解析に失敗しました";
+    } finally {
+      newAnalyzing = false;
     }
   }
 
@@ -218,6 +337,95 @@
     </section>
 
     <section class="card">
+      <h2>購入登録</h2>
+
+      <div class="receipt-upload">
+        <div class="field">
+          <span class="field-label">レシート写真（任意・AIが金額と品目を読み取ります）</span>
+          <input
+            bind:this={newCameraFileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic"
+            capture="environment"
+            class="hidden-file-input"
+            onchange={handleNewReceiptFileChange}
+            disabled={newAnalyzing}
+          />
+          <input
+            bind:this={newGalleryFileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic"
+            class="hidden-file-input"
+            onchange={handleNewReceiptFileChange}
+            disabled={newAnalyzing}
+          />
+          <div class="receipt-source-buttons">
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              onclick={() => newCameraFileInputRef?.click()}
+              disabled={newAnalyzing}
+            >
+              カメラで撮影
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              onclick={() => newGalleryFileInputRef?.click()}
+              disabled={newAnalyzing}
+            >
+              ギャラリーから選択
+            </button>
+          </div>
+          {#if newReceiptFile}
+            <p class="selected-file">選択中の画像: {newReceiptFile.name}</p>
+          {/if}
+        </div>
+        {#if newReceiptFile}
+          <button
+            class="btn btn-secondary btn-sm"
+            type="button"
+            onclick={handleNewAnalyzeReceipt}
+            disabled={newAnalyzing || !!newReceiptImagePath}
+          >
+            {newAnalyzing ? "解析中…" : newReceiptImagePath ? "解析済み" : "この画像を解析する"}
+          </button>
+        {/if}
+        {#if newAnalyzeError}
+          <p class="alert alert-error" role="alert">{newAnalyzeError}</p>
+        {/if}
+        {#if newAnalyzeResult}
+          <p class="alert alert-success">解析結果を金額・メモ欄に反映しました。内容を確認・修正してから登録してください。</p>
+        {/if}
+      </div>
+
+      <form onsubmit={handleNewPurchaseSubmit}>
+        <div class="field">
+          <label for="newAmount">金額</label>
+          <input id="newAmount" type="number" inputmode="numeric" bind:value={newAmount} required disabled={newSubmitting} />
+        </div>
+        <div class="field">
+          <label for="newStoreName">購入店舗（任意）</label>
+          <input id="newStoreName" type="text" bind:value={newStoreName} disabled={newSubmitting} />
+        </div>
+        <div class="field">
+          <label for="newMemo">品目メモ（任意）</label>
+          <input id="newMemo" type="text" bind:value={newMemo} disabled={newSubmitting} />
+        </div>
+        <div class="field">
+          <label for="newPurchasedAt">購入日</label>
+          <input id="newPurchasedAt" type="date" bind:value={newPurchasedAt} required disabled={newSubmitting} />
+        </div>
+        {#if newSubmitError}
+          <p class="alert alert-error" role="alert">{newSubmitError}</p>
+        {/if}
+        <button class="btn btn-primary" type="submit" disabled={newSubmitting}>
+          {newSubmitting ? "登録中…" : "登録する"}
+        </button>
+      </form>
+    </section>
+
+    <section class="card">
       <div class="section-header">
         <h2>購入履歴の編集・削除（直近{HISTORY_PREVIEW_COUNT}件）</h2>
         <a class="link" href="/admin/dashboard/history">月別に見る →</a>
@@ -308,6 +516,10 @@
       {/if}
     </section>
   </main>
+
+  {#if newPendingCropFile}
+    <ReceiptImageCropper file={newPendingCropFile} onCaptured={handleNewCropConfirmed} onClose={handleNewCropCancelled} />
+  {/if}
 </div>
 
 <style>
@@ -350,6 +562,36 @@
 
   .link:hover {
     text-decoration: underline;
+  }
+
+  .receipt-upload {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    padding-bottom: var(--space-md);
+    border-bottom: 1px dashed var(--color-border);
+  }
+
+  .field-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-ink-muted);
+  }
+
+  .hidden-file-input {
+    display: none;
+  }
+
+  .receipt-source-buttons {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+  }
+
+  .selected-file {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--color-ink-muted);
   }
 
   form {

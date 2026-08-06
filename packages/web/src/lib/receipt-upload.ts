@@ -8,10 +8,15 @@ export class ReceiptUploadError extends Error {}
 
 /**
  * レシート画像をFirebase Storageに直接アップロードする（クライアント→Storage直、01_architecture.md 5章）。
- * Storage Rulesでは施設ロールのみ書き込み可能なため、施設アカウントでのログインが前提。
  * 保存先パスは storage.rules / receipts.ts と同じ規約: facilities/{facilityId}/receipts/{fileName}
+ *
+ * facilityIdの解決方法:
+ * - 施設アカウントでログイン中: Custom Claimsのfacilityidをそのまま使う（クエリ改ざん不可）
+ * - adminアカウントでログイン中: Custom Claimsにfacilityidを持たないため、呼び出し側が
+ *   GET /balance 等のレスポンスから取得したfacilityIdを明示的に渡す必要がある
+ *   （storage.rulesはadminロールでの書き込みも許可している）
  */
-export async function uploadReceiptImage(file: File): Promise<string> {
+export async function uploadReceiptImage(file: File, explicitFacilityId?: string): Promise<string> {
   if (!ALLOWED_MIME_TYPES.has(file.type)) {
     throw new ReceiptUploadError("対応していない画像形式です（JPEG/PNG/WebP/HEICのみ）");
   }
@@ -24,7 +29,9 @@ export async function uploadReceiptImage(file: File): Promise<string> {
     throw new ReceiptUploadError("ログインしていません");
   }
   const tokenResult = await user.getIdTokenResult();
-  const facilityId = tokenResult.claims.facilityId;
+  const claimFacilityId = tokenResult.claims.facilityId;
+  const facilityId =
+    typeof claimFacilityId === "string" && claimFacilityId.length > 0 ? claimFacilityId : explicitFacilityId;
   if (typeof facilityId !== "string" || facilityId.length === 0) {
     throw new ReceiptUploadError("施設情報を取得できませんでした");
   }
