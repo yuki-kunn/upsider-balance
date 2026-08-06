@@ -52,6 +52,8 @@ export interface Purchase {
   facilityId: string;
   notionSyncStatus: NotionSyncStatus;
   notionSyncError: string | null;
+  /** 送信成功時に作成されたNotionページのID。購入削除時に対応ページをアーカイブするために使う */
+  notionPageId: string | null;
 }
 
 /**

@@ -196,6 +196,7 @@ function mapPurchaseDocs(
       facilityId: data.facilityId,
       notionSyncStatus: data.notionSyncStatus ?? "notSynced",
       notionSyncError: data.notionSyncError ?? null,
+      notionPageId: data.notionPageId ?? null,
     };
   });
 }
