@@ -1,6 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { addReceiptRowToNotion } from "./notion.js";
+import { addReceiptRowToNotion, archiveReceiptRowInNotion } from "./notion.js";
 import { getReceiptImageSignedUrl } from "./storage-url.js";
 
 /**
@@ -32,7 +32,7 @@ export async function syncPurchaseToNotion(
   try {
     const imageUrl = await getReceiptImageSignedUrl(purchase.receiptImagePath);
     const dateStr = purchase.purchasedAt.toDate().toISOString().slice(0, 10);
-    await addReceiptRowToNotion({
+    const notionPageId = await addReceiptRowToNotion({
       imageUrl,
       amount: purchase.amount,
       date: dateStr,
@@ -40,7 +40,7 @@ export async function syncPurchaseToNotion(
       memo: purchase.memo,
     });
     await purchaseRef.set(
-      { notionSyncStatus: "synced", notionSyncError: null, updatedAt: FieldValue.serverTimestamp() },
+      { notionSyncStatus: "synced", notionSyncError: null, notionPageId, updatedAt: FieldValue.serverTimestamp() },
       { merge: true },
     );
     return { notionSyncStatus: "synced", notionSyncError: null };
@@ -53,4 +53,15 @@ export async function syncPurchaseToNotion(
     );
     return { notionSyncStatus: "failed", notionSyncError: message };
   }
+}
+
+/**
+ * Notionに送信済みの購入を削除する際、対応するNotionページもアーカイブ（ゴミ箱行き）にする。
+ * notionPageIdが無い（そもそも送信していない/送信に失敗している）場合は何もしない。
+ * ここでの失敗はFirestore側の購入削除をブロックしない（呼び出し側でtry/catchして
+ * ログのみ残す想定。Notion側の削除だけ失敗しても、Firestore上の購入記録は削除確定させる）。
+ */
+export async function unsyncPurchaseFromNotion(notionPageId: string | null | undefined): Promise<void> {
+  if (!notionPageId) return;
+  await archiveReceiptRowInNotion(notionPageId);
 }

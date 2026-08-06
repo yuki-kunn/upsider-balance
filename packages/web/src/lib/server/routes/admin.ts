@@ -13,7 +13,7 @@ import {
 } from "../lib/validation.js";
 import { resolveSoleFacilityId } from "../lib/facility.js";
 import { respondWithError } from "../lib/error-response.js";
-import { syncPurchaseToNotion } from "../lib/notion-sync.js";
+import { syncPurchaseToNotion, unsyncPurchaseFromNotion } from "../lib/notion-sync.js";
 
 export const adminRoute = new Hono<AppEnv>();
 
@@ -212,6 +212,8 @@ adminRoute.delete("/purchases/:id", async (c) => {
     const balanceRef = db.doc(`facilities/${facilityId}/balance/current`);
     const purchaseRef = db.doc(`facilities/${facilityId}/purchases/${purchaseId}`);
 
+    let notionPageId: string | null = null;
+
     const result = await db.runTransaction(async (tx) => {
       const [balanceSnap, purchaseSnap] = await Promise.all([tx.get(balanceRef), tx.get(purchaseRef)]);
 
@@ -219,7 +221,9 @@ adminRoute.delete("/purchases/:id", async (c) => {
         throw new NotFoundError("purchase not found");
       }
 
-      const purchaseAmount = purchaseSnap.data()!.amount as number;
+      const purchaseData = purchaseSnap.data()!;
+      const purchaseAmount = purchaseData.amount as number;
+      notionPageId = (purchaseData.notionPageId as string | null | undefined) ?? null;
       const currentBalanceAmount = (balanceSnap.data()?.amount as number | undefined) ?? 0;
       // 削除時は必ず残額に再加算する（要件確定）
       const newBalanceAmount = currentBalanceAmount + purchaseAmount;
@@ -238,6 +242,19 @@ adminRoute.delete("/purchases/:id", async (c) => {
 
       return { balanceAmount: newBalanceAmount };
     });
+
+    // Notion側のページ削除はFirestoreの削除確定後に試みる。ここで失敗しても購入削除自体は
+    // 既に完了しているため、ログに残すのみでレスポンスには影響させない
+    // （Notion側の手動削除で十分カバーできる、購入削除という主目的をブロックしないため）。
+    try {
+      await unsyncPurchaseFromNotion(notionPageId);
+    } catch (err) {
+      console.error(
+        "failed to archive Notion page after purchase deletion",
+        purchaseId,
+        err instanceof Error ? err.message : err,
+      );
+    }
 
     return c.json(result);
   } catch (err) {

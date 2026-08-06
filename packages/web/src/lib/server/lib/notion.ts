@@ -33,7 +33,8 @@ export type NotionReceiptRow = {
   memo?: string | null;
 };
 
-export async function addReceiptRowToNotion({ imageUrl, amount, date, storeName, memo }: NotionReceiptRow): Promise<void> {
+/** @returns 作成したNotionページのID（削除時にaddReceiptRowToNotionと対応するページをアーカイブするために使う） */
+export async function addReceiptRowToNotion({ imageUrl, amount, date, storeName, memo }: NotionReceiptRow): Promise<string> {
   const databaseId = process.env.NOTION_DATABASE_ID;
   if (!databaseId) {
     throw new Error("NOTION_DATABASE_ID environment variable is not set");
@@ -99,9 +100,31 @@ export async function addReceiptRowToNotion({ imageUrl, amount, date, storeName,
     });
   }
 
-  await notion.pages.create({
+  const page = await notion.pages.create({
     parent: { type: "data_source_id", data_source_id: dataSourceId },
     properties: properties as never,
     children: children as never,
   });
+
+  return page.id;
+}
+
+/**
+ * Notionページをアーカイブ（ゴミ箱へ移動）する。購入履歴の削除に連動して呼ぶ。
+ * Notion API上、ページの完全削除はできず「in_trash: true」でのアーカイブが実質的な削除操作となる。
+ * 対象ページが既に手動で削除・アーカイブ済みの場合もエラーにせず正常終了とする
+ * （削除操作の冪等性を保つため）。
+ */
+export async function archiveReceiptRowInNotion(pageId: string): Promise<void> {
+  const notion = getNotionClient();
+  try {
+    await notion.pages.update({ page_id: pageId, in_trash: true } as never);
+  } catch (err) {
+    const notionErr = err as { code?: string; status?: number };
+    // 対象ページが既に存在しない/アクセス不可の場合は冪等に成功扱いにする
+    if (notionErr.code === "object_not_found" || notionErr.status === 404) {
+      return;
+    }
+    throw err;
+  }
 }
