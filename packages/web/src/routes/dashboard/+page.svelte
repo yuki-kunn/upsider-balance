@@ -197,6 +197,7 @@
             id="receiptFile"
             type="file"
             accept="image/jpeg,image/png,image/webp,image/heic"
+            capture="environment"
             onchange={handleReceiptFileChange}
             disabled={analyzing}
           />
