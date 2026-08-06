@@ -26,6 +26,14 @@ export interface Balance {
   updatedBy: "system" | "admin";
 }
 
+/**
+ * 購入登録のたびに試みるNotionデータベースへの同期状態。
+ * - notSynced: レシート画像が無い等、そもそも同期対象外（送信を試みていない）
+ * - synced: 送信成功
+ * - failed: 送信を試みたが失敗した（notionSyncErrorに理由を保持。admin画面から再送信できる）
+ */
+export type NotionSyncStatus = "notSynced" | "synced" | "failed";
+
 /** facilities/{facilityId}/purchases/{purchaseId} */
 export interface Purchase {
   id: string;
@@ -42,6 +50,8 @@ export interface Purchase {
   editedByAdmin: boolean;
   /** 非正規化。将来のコレクショングループクエリ用 */
   facilityId: string;
+  notionSyncStatus: NotionSyncStatus;
+  notionSyncError: string | null;
 }
 
 /**
@@ -102,6 +112,12 @@ export interface UpdatePurchaseRequest {
   storeName?: string | null;
   memo?: string | null;
   purchasedAt?: TimestampMillis;
+}
+
+/** POST /api/admin/purchases/:id/notion-sync のレスポンス */
+export interface NotionSyncResponse {
+  notionSyncStatus: NotionSyncStatus;
+  notionSyncError: string | null;
 }
 
 /** PATCH /api/admin/balance */

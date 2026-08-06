@@ -13,6 +13,7 @@ import {
 } from "../lib/validation.js";
 import { resolveFacilityIdForUser } from "../lib/facility.js";
 import { respondWithError } from "../lib/error-response.js";
+import { syncPurchaseToNotion } from "../lib/notion-sync.js";
 
 export const purchasesRoute = new Hono<AppEnv>();
 
@@ -80,15 +81,29 @@ purchasesRoute.post("/", requireRole("facility", "admin"), async (c) => {
         updatedAt: FieldValue.serverTimestamp(),
         editedByAdmin: false,
         facilityId,
+        notionSyncStatus: "notSynced",
+        notionSyncError: null,
       });
 
       return { nextAmount };
+    });
+
+    // Notionへの同期は購入登録の成否に影響させない（失敗してもpurchases作成・残額減算は確定済み）。
+    // Vercelのサーバーレス環境ではレスポンス送信後の処理継続が保証されないため、
+    // ここでawaitして完了させてからレスポンスを返す。
+    const notionSync = await syncPurchaseToNotion(db, facilityId, purchaseRef.id, {
+      amount,
+      storeName,
+      memo,
+      purchasedAt: Timestamp.fromMillis(purchasedAtMillis),
+      receiptImagePath,
     });
 
     return c.json(
       {
         id: purchaseRef.id,
         balanceAmount: result.nextAmount,
+        notionSyncStatus: notionSync.notionSyncStatus,
       },
       201,
     );
@@ -179,6 +194,8 @@ function mapPurchaseDocs(
       updatedAt: (data.updatedAt as FirebaseFirestore.Timestamp)?.toMillis?.() ?? Date.now(),
       editedByAdmin: Boolean(data.editedByAdmin),
       facilityId: data.facilityId,
+      notionSyncStatus: data.notionSyncStatus ?? "notSynced",
+      notionSyncError: data.notionSyncError ?? null,
     };
   });
 }
