@@ -21,7 +21,11 @@
   let submitError = $state("");
 
   let receiptFile = $state<File | null>(null);
-  let receiptFileInputRef = $state<HTMLInputElement | null>(null);
+  /** 「カメラで撮影」用（capture属性あり）と「ギャラリーから選択」用の2つのinputを持ち、
+   * どちらも見た目上は隠して専用ボタンから起動する。カメラを常に起動したいわけではない
+   * 端末（Android等）でもユーザーがどちらか選べるようにするため。 */
+  let cameraFileInputRef = $state<HTMLInputElement | null>(null);
+  let galleryFileInputRef = $state<HTMLInputElement | null>(null);
   let receiptImagePath = $state<string | null>(null);
   let analyzing = $state(false);
   let analyzeError = $state("");
@@ -99,7 +103,8 @@
       memo = "";
       purchasedAt = millisToDateInput(Date.now());
       receiptFile = null;
-      if (receiptFileInputRef) receiptFileInputRef.value = "";
+      if (cameraFileInputRef) cameraFileInputRef.value = "";
+      if (galleryFileInputRef) galleryFileInputRef.value = "";
       receiptImagePath = null;
       analyzeResult = null;
       await Promise.all([loadBalance(), loadPurchases()]);
@@ -191,19 +196,46 @@
 
       <div class="receipt-upload">
         <div class="field">
-          <label for="receiptFile">レシート写真（任意・AIが金額と品目を読み取ります）</label>
+          <span class="field-label">レシート写真（任意・AIが金額と品目を読み取ります）</span>
+          <!-- カメラ起動用・ギャラリー選択用のinputはそれぞれ隠し、ボタンから起動する。
+               capture属性付きのinputは端末によってはタップ即座にカメラが起動しギャラリーを
+               選べなくなるため、ボタンを分けてユーザーがどちらか選べるようにしている。 -->
           <input
-            bind:this={receiptFileInputRef}
-            id="receiptFile"
+            bind:this={cameraFileInputRef}
             type="file"
             accept="image/jpeg,image/png,image/webp,image/heic"
             capture="environment"
+            class="hidden-file-input"
             onchange={handleReceiptFileChange}
             disabled={analyzing}
           />
+          <input
+            bind:this={galleryFileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic"
+            class="hidden-file-input"
+            onchange={handleReceiptFileChange}
+            disabled={analyzing}
+          />
+          <div class="receipt-source-buttons">
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              onclick={() => cameraFileInputRef?.click()}
+              disabled={analyzing}
+            >
+              カメラで撮影
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              onclick={() => galleryFileInputRef?.click()}
+              disabled={analyzing}
+            >
+              ギャラリーから選択
+            </button>
+          </div>
           {#if receiptFile}
-            <!-- 切り抜き後のFileはinput要素のvalueに反映できない（ブラウザの仕様）ため、
-                 実際に選択されているファイルを別途テキストで表示する -->
             <p class="selected-file">選択中の画像: {receiptFile.name}</p>
           {/if}
         </div>
@@ -306,6 +338,22 @@
     gap: var(--space-sm);
     padding-bottom: var(--space-md);
     border-bottom: 1px dashed var(--color-border);
+  }
+
+  .field-label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-ink-muted);
+  }
+
+  .hidden-file-input {
+    display: none;
+  }
+
+  .receipt-source-buttons {
+    display: flex;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
   }
 
   .selected-file {
