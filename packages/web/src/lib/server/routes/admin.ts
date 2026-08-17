@@ -14,6 +14,7 @@ import {
 import { resolveSoleFacilityId } from "../lib/facility.js";
 import { respondWithError } from "../lib/error-response.js";
 import { syncPurchaseToNotion, unsyncPurchaseFromNotion } from "../lib/notion-sync.js";
+import { buildMonthlyReceiptsZip } from "../lib/receipts-zip.js";
 
 export const adminRoute = new Hono<AppEnv>();
 
@@ -259,5 +260,48 @@ adminRoute.delete("/purchases/:id", async (c) => {
     return c.json(result);
   } catch (err) {
     return respondWithError(c, err, "failed to delete purchase");
+  }
+});
+
+/**
+ * GET /admin/purchases/receipts-zip?year=YYYY&month=MM
+ * adminのみ。指定月にNotionへ送信済み（notionSyncStatus === "synced"）の購入について、
+ * Notion上に登録されているレシート画像を取得し、ひとつのzipにまとめてダウンロードさせる。
+ */
+adminRoute.get("/purchases/receipts-zip", async (c) => {
+  const db = getDb();
+  const facilityId = await resolveSoleFacilityId(db);
+  if (!facilityId) {
+    return c.json({ error: "not_found", message: "facility not found" }, 404);
+  }
+
+  const year = Number(c.req.query("year"));
+  const month = Number(c.req.query("month"));
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return c.json({ error: "bad_request", message: "year and month must be valid integers (month: 1-12)" }, 400);
+  }
+
+  try {
+    const { buffer, includedCount, skippedCount, zipFileName } = await buildMonthlyReceiptsZip(db, facilityId, year, month);
+
+    if (includedCount === 0) {
+      return c.json(
+        {
+          error: "not_found",
+          message: "この月にNotion送信済みのレシートがありません",
+        },
+        404,
+      );
+    }
+
+    c.header("Content-Type", "application/zip");
+    c.header("Content-Disposition", `attachment; filename="${encodeURIComponent(zipFileName)}"`);
+    c.header("X-Receipts-Included", String(includedCount));
+    c.header("X-Receipts-Skipped", String(skippedCount));
+    // Hono の body() は Node.js の Buffer をそのまま受け付けないため、Uint8Array として渡す
+    // （BufferはUint8Arrayのサブクラスなので中身は同一データ）。
+    return c.body(new Uint8Array(buffer));
+  } catch (err) {
+    return respondWithError(c, err, "failed to build monthly receipts zip");
   }
 });

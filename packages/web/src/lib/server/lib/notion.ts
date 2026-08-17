@@ -128,3 +128,43 @@ export async function archiveReceiptRowInNotion(pageId: string): Promise<void> {
     throw err;
   }
 }
+
+/**
+ * Notionページに登録されているレシート画像のURLを取得する（月別zipダウンロード用）。
+ * addReceiptRowToNotionはfilesプロパティとページ本文の両方に画像を入れているため、
+ * まずfilesプロパティ（external URL）を探し、無ければ本文のimageブロックを探す。
+ * ページが既に削除・アーカイブ済み、または画像が見つからない場合はnullを返す
+ * （呼び出し側でその購入をzipから除外する）。
+ */
+export async function getReceiptImageUrlFromNotion(pageId: string): Promise<string | null> {
+  const notion = getNotionClient();
+  try {
+    const page = await notion.pages.retrieve({ page_id: pageId });
+    if ("properties" in page) {
+      for (const prop of Object.values(page.properties)) {
+        if (prop.type === "files" && prop.files.length > 0) {
+          const file = prop.files[0];
+          if (file.type === "external") return file.external.url;
+          if (file.type === "file") return file.file.url;
+        }
+      }
+    }
+
+    const blocks = await notion.blocks.children.list({ block_id: pageId });
+    for (const block of blocks.results) {
+      if ("type" in block && block.type === "image") {
+        const image = block.image;
+        if (image.type === "external") return image.external.url;
+        if (image.type === "file") return image.file.url;
+      }
+    }
+
+    return null;
+  } catch (err) {
+    const notionErr = err as { code?: string; status?: number };
+    if (notionErr.code === "object_not_found" || notionErr.status === 404) {
+      return null;
+    }
+    throw err;
+  }
+}

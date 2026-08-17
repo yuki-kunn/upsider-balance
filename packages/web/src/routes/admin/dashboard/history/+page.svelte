@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { PurchaseListItem } from "@upsider-balance/shared";
-  import { apiGet, apiPatch, apiPost, apiDelete } from "$lib/api-client";
+  import { apiGet, apiPatch, apiPost, apiDelete, apiFetch } from "$lib/api-client";
   import { millisToDateInput, dateInputToMillis, formatDate, formatMonthLabel } from "$lib/date-format";
 
   const now = new Date();
@@ -25,6 +25,9 @@
   let deletingId = $state<string | null>(null);
   let syncingId = $state<string | null>(null);
   let syncError = $state("");
+
+  let zipDownloading = $state(false);
+  let zipError = $state("");
 
   const totalAmount = $derived(purchases.reduce((sum, p) => sum + p.amount, 0));
 
@@ -135,6 +138,32 @@
     }
   }
 
+  /** この月にNotion送信済みのレシート画像をzipにまとめてダウンロードする */
+  async function downloadReceiptsZip() {
+    zipError = "";
+    zipDownloading = true;
+    try {
+      const res = await apiFetch(`/admin/purchases/receipts-zip?year=${year}&month=${month}`);
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="?([^"]+)"?/);
+      const fileName = match ? decodeURIComponent(match[1]) : `${formatMonthLabel(year, month)}_レシート.zip`;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      zipError = e instanceof Error ? e.message : "レシートのzipダウンロードに失敗しました";
+    } finally {
+      zipDownloading = false;
+    }
+  }
+
   onMount(() => {
     loadMonth();
   });
@@ -160,14 +189,22 @@
       {#if syncError}
         <p class="alert alert-error" role="alert">{syncError}</p>
       {/if}
+      {#if zipError}
+        <p class="alert alert-error" role="alert">{zipError}</p>
+      {/if}
       {#if error}
         <p class="alert alert-error" role="alert">{error}</p>
       {:else if loading}
         <p class="text-muted">読み込み中…</p>
       {:else}
-        <p class="month-total">
-          この月の合計: <span class="total-figure">{totalAmount.toLocaleString()}円</span>（{purchases.length}件）
-        </p>
+        <div class="month-summary">
+          <p class="month-total">
+            この月の合計: <span class="total-figure">{totalAmount.toLocaleString()}円</span>（{purchases.length}件）
+          </p>
+          <button class="btn btn-secondary btn-sm" onclick={downloadReceiptsZip} disabled={zipDownloading}>
+            {zipDownloading ? "作成中…" : "この月のレシートをZIPでダウンロード"}
+          </button>
+        </div>
         {#if purchases.length === 0}
           <p class="text-muted">この月の購入履歴はありません</p>
         {:else}
@@ -280,9 +317,19 @@
     white-space: nowrap;
   }
 
+  .month-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+  }
+
   .month-total {
     font-size: 0.9375rem;
     color: var(--color-ink-muted);
+    margin: 0;
   }
 
   .total-figure {
