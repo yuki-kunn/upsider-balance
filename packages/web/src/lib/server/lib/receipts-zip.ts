@@ -6,11 +6,19 @@ import { Timestamp } from "firebase-admin/firestore";
 import { getReceiptImageUrlFromNotion } from "./notion.js";
 import { formatMonthLabelForFile } from "./date-format.js";
 
+/** 1つのフォルダに含めるレシート件数。これを超える場合はpart単位でzip内をフォルダ分けする。 */
+const RECEIPTS_PER_FOLDER = 10;
+
 /**
  * 指定月にNotionへ送信済み（notionSyncStatus === "synced"）の購入を対象に、
  * レシート画像をNotionから取得してひとつのzipにまとめる。
  * このアプリのFirebase Storageではなく、あえてNotion側に実際に登録されている画像を
  * 正とする（Notionが施設の実運用上のレシート台帳になっている想定のため）。
+ *
+ * 合計件数がRECEIPTS_PER_FOLDER（10件）を超える場合、zip内をpart1/, part2/, …の
+ * サブフォルダに10件ずつ区切って格納する（1フォルダあたりの枚数が多すぎて
+ * 確認しづらくなるのを避けるための実運用上の要件）。10件以下の場合はフォルダ分けせず
+ * これまで通りzip直下にファイルを並べる。
  *
  * Vercel Serverless Functionsのレスポンスとして返しやすいよう、ストリームではなく
  * 完成したzipをBufferとしてメモリ上に構築する（月あたりのレシート枚数は実運用上
@@ -38,20 +46,13 @@ export async function buildMonthlyReceiptsZip(
     .orderBy("purchasedAt", "asc")
     .get();
 
-  const archive = new ZipArchive({ zlib: { level: 9 } });
-  const chunks: Buffer[] = [];
-  archive.on("data", (chunk: Buffer) => chunks.push(chunk));
-  const archiveFinished = new Promise<void>((resolve, reject) => {
-    archive.on("end", resolve);
-    archive.on("error", reject);
-  });
-
-  let includedCount = 0;
   let skippedCount = 0;
+  const fetchedFiles: { fileName: string; buffer: Buffer }[] = [];
 
-  // archiver へのファイル追加は順番に行う必要があるため、Notion取得もシーケンシャルに行う
-  // （並列化すると1件あたりのAPI呼び出し数は増やせるが、Notion APIのレート制限を踏まえて
-  // 安全側に倒す。月あたりの件数は実運用上多くても数十件程度を想定）。
+  // archiverへの追加前に全件のNotion画像を集める（件数が判明してからでないと
+  // part分けのフォルダ番号が決められないため）。Notion取得はシーケンシャルに行う
+  // （並列化すると1件あたりのAPI呼び出し数は増やせるが、Notion APIのレート制限を
+  // 踏まえて安全側に倒す。月あたりの件数は実運用上多くても数十件程度を想定）。
   for (const doc of snap.docs) {
     const data = doc.data();
     const notionSyncStatus = data.notionSyncStatus as string | undefined;
@@ -88,17 +89,35 @@ export async function buildMonthlyReceiptsZip(
       const extension = guessExtensionFromContentType(res.headers.get("content-type")) ?? "jpg";
       const fileName = `${dateLabel}_${safeStoreName}_${doc.id.slice(0, 6)}.${extension}`;
 
-      archive.append(buffer, { name: fileName });
-      includedCount += 1;
+      fetchedFiles.push({ fileName, buffer });
     } catch (err) {
       console.error("failed to fetch receipt image for zip", doc.id, err instanceof Error ? err.message : err);
       skippedCount += 1;
     }
   }
 
+  const archive = new ZipArchive({ zlib: { level: 9 } });
+  const chunks: Buffer[] = [];
+  archive.on("data", (chunk: Buffer) => chunks.push(chunk));
+  const archiveFinished = new Promise<void>((resolve, reject) => {
+    archive.on("end", resolve);
+    archive.on("error", reject);
+  });
+
+  // 10件を超える場合のみpart1/, part2/, …のサブフォルダに区切る。
+  // 10件以下ならフォルダ分けせずzip直下に並べる（従来通りの見え方を維持する）。
+  const needsFolderSplit = fetchedFiles.length > RECEIPTS_PER_FOLDER;
+  fetchedFiles.forEach(({ fileName, buffer }, index) => {
+    const entryName = needsFolderSplit
+      ? `part${Math.floor(index / RECEIPTS_PER_FOLDER) + 1}/${fileName}`
+      : fileName;
+    archive.append(buffer, { name: entryName });
+  });
+
   await archive.finalize();
   await archiveFinished;
 
+  const includedCount = fetchedFiles.length;
   const zipFileName = `${formatMonthLabelForFile(year, month)}_レシート.zip`;
   return { buffer: Buffer.concat(chunks), includedCount, skippedCount, zipFileName };
 }
